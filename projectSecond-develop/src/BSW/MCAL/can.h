@@ -5,15 +5,9 @@
 #include "IfxPort.h"
 #include "IfxCan.h"
 #include "IfxCan_Can.h"
-
-
 #include "priority.h"
-#include "tof.h"
-#include "ultrasonic.h"
 
-#include "dtc.h" // dtc 정보 읽기용
-#include "config.h" // ota용 플래그 쓰기용
-#include "routine_control.h" // 0x31(routine control)용
+#include "udshandler.h" // SID에 따른 UDS 기능 호출
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -61,8 +55,9 @@ void canInit(CAN_BAUDRATES ls_baudrate, CAN_NODE CAN_Node);
 void canSetFilterRange(uint32 start, uint32 end);
 void canSetFilterMask(uint32 id, uint32 mask);
 
+
 void canSendMsg(unsigned int id, const char *txData, int len);
 int canRecvMsg (unsigned int *id, unsigned char *rxData, int *len);
-
+void canSend8(uint32 id, const uint8 *d);
 
 #endif

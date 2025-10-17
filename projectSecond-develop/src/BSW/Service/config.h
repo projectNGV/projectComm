@@ -1,8 +1,7 @@
-// 파일명: config.h
-
 #ifndef CONFIG_H_
 #define CONFIG_H_
 #include "Ifx_Types.h"
+#include "udsprotocol.h"
 #include <stdbool.h>
 
 // 시스템의 모든 설정값을 모아둘 구조체

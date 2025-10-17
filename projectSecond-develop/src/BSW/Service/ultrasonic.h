@@ -9,10 +9,8 @@
 #define BSW_IO_ULTRASONIC_H_
 
 #include "IfxPort.h"
-
 #include "port.h"
 #include "util.h"
-
 #include "dtc.h"
 
 typedef struct

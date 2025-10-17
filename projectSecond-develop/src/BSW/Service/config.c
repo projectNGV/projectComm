@@ -4,8 +4,6 @@
 // 나중에 DFlash 관련 헤더를 여기에 추가합니다.
 //#include "IfxFlash.h"
 
-// .h 파일에서 extern으로 선언했던 변수의 실체
-
 SystemConfig g_config;
 
 // 설정값을 초기화하는 함수 (부팅 시 1회 호출)
@@ -24,17 +22,17 @@ void config_init(void)
 
 // ECU가 SID 0x22로 지원하는 모든 DID 목록
 uint16 SUPPORTED_DIDS[] = {
-        0x1000, // 레이저 센서 거리
-        0x2000, // 초음파(좌) 센서 거리
-        0x2001, // 초음파(우) 센서 거리
-        0x2002, // 초음파(후방) 센서 거리
-        0xF187, // ECU 부품 번호
-        0xF18C, // ECU 시리얼 번호
-        0xF190, // 차대번호(VIN)
-        0xF192, // ECU 공급업체 정보
-        0xF193, // ECU 제조 날짜
-        0xF1A0, // 지원 DID 목록
-        0xF186 //  Diagnostic Session Identifier(세션 정보 요청)
+        DID_LASER_SENSOR_DISTANCE, // 레이저 센서 길이 측정
+        DID_ULTRASONIC_LEFT_DISTANCE, // 좌측 초음파 센서 측정
+        DID_ULTRASONIC_RIGHT_DISTANCE, // 우측 초음파 센서 측정
+        DID_ULTRASONIC_REAR_DISTANCE, // 후방 초음파 센서 측정
+        DID_VEHICLE_MANUFACTURER_ECU_PART_NUMBER, // ECU 부품 번호
+        DID_ECU_SERIAL_NUMBER, // ECU 시리얼 번호
+        DID_VEHICLE_IDENTIFICATION_NUMBER, // 차대번호(VIN)
+        DID_ECU_SUPPLIER_INFORMATION, // ECU 공급업체 정보
+        DID_ECU_MANUFACTURING_DATE, // ECU 제조 날짜
+        DID_SUPPORTED_DIDS_LIST,  // 지원 DID 목록
+        DID_ACTIVE_DIAGNOSTIC_SESSION // Diagnostic Session Identifier(세션 정보 요청)
 };
 
 uint8 NUM_SUPPORTED_DIDS = sizeof(SUPPORTED_DIDS) / sizeof(uint16);

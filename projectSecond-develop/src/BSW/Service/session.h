@@ -6,7 +6,7 @@
 // 1. 세션 종류 정의
 typedef enum {
     SESSION_DEFAULT = 1, // default session
-    SESSION_PROGRAMMING = 2, // 안 쓰긴 함
+    SESSION_PROGRAMMING = 2, // programming session
     SESSION_EXTENDED = 3 // extended session
 } DiagnosticSession;
 
