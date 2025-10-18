@@ -5,6 +5,9 @@
 // session_mainFunction()이 20ms마다 호출되므로, 250번 호출되면 5초가 경과한 것입니다.
 #define S3_SERVER_TIMEOUT_TICKS 250
 
+
+
+
 // --- 모듈 내부 전역 변수 (static) ---
 // 현재 진단 세션 상태를 저장하는 변수
 static DiagnosticSession g_currentSession = SESSION_DEFAULT;

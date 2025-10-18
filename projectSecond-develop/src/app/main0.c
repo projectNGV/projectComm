@@ -22,6 +22,7 @@ void main0 (void)
         handleStateMachine(&motorState);
         diagnoseTofSensor();
         diagnoseUltrasonicSensor();
+        // 와치독 주기적으로 리프레시
         IfxScuWdt_serviceCpuWatchdog(IfxScuWdt_getCpuWatchdogPassword());
 
     }

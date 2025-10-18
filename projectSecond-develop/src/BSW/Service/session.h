@@ -3,6 +3,13 @@
 
 #include "Ifx_Types.h"
 
+// --- 서버 타이밍 파라미터 정의 (단위: ms) ---
+// P2: 서버가 요청을 받고 응답을 보내기까지의 최대 시간
+#define P2_SERVER_MAX_MS    50
+// P2*: 서버가 Response Pending(0x78)을 보낸 후 다음 응답까지의 최대 시간
+#define P2_STAR_SERVER_MAX_MS 5000
+
+
 // 1. 세션 종류 정의
 typedef enum {
     SESSION_DEFAULT = 1, // default session

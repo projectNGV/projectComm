@@ -1,6 +1,6 @@
 #include "dtc.h" // dtc.h의 모든 선언과 정의(MAX_DTCS 등)를 가져옴
 
-// --- 1. DTC 저장소의 '실체' (정의) ---
+// --- 1. DTC 저장소---
 // dtc.h의 extern 선언에 대응하는 실제 메모리 공간입니다.
 DtcRecord g_dtcStorage[MAX_DTCS] = {
     { DTC_TOF_TIMEOUT,    0x00 }, // 초기 상태: 고장 없음
@@ -14,7 +14,7 @@ DtcRecord g_dtcStorage[MAX_DTCS] = {
 
 };
 
-// --- 2. DTC 상태 업데이트 함수의 '실체' (구현) ---
+// --- 2. DTC 상태 업데이트 함수 구현 ---
 // dtc.h에 선언된 함수의 실제 동작 내용입니다.
 void dtc_updateStatus(uint32 dtc_code, bool is_faulty) {
     for (int i = 0; i < MAX_DTCS; i++) {

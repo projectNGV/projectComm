@@ -24,15 +24,25 @@ void udsHandler (unsigned char *rxData, int rxLen)
             if (SID == SESSION_CONTROL && sfLen >= 2)
             {
                 uint8 sub_function = rxData[2];
-                // 지원하는 세션(Default, Extended)인지 확인합니다.
                 if (sub_function == SESSION_DEFAULT || sub_function == SESSION_EXTENDED)
                 {
-                    // 세션 관리 모듈을 통해 현재 세션을 변경합니다.
                     session_setCurrent((DiagnosticSession) sub_function);
 
-                    // "세션 변경 성공" 긍정 응답을 전송합니다.
-                    uint8 payload[] = {0x50, sub_function}; // 0x50 = 0x10 + 0x40
+                    // --- 💡 수정된 부분 시작 ---
+                    // P2* 값은 10ms 단위로 변환해야 함 (표준 규격)
+                    uint16 p2_star_value = P2_STAR_SERVER_MAX_MS / 10;
+
+                    // 표준 규격에 맞는 긍정 응답 페이로드를 생성합니다 (총 6바이트).
+                    uint8 payload[] = {
+                        0x50,                                   // 긍정 응답 SID
+                        sub_function,                           // Sub-function echo
+                        (uint8)(P2_SERVER_MAX_MS >> 8),         // P2_server_max (High-byte)
+                        (uint8)(P2_SERVER_MAX_MS & 0xFF),       // P2_server_max (Low-byte)
+                        (uint8)(p2_star_value >> 8),            // P2*_server_max (High-byte)
+                        (uint8)(p2_star_value & 0xFF)           // P2*_server_max (Low-byte)
+                    };
                     isotp_send_response(0x7E8, payload, sizeof(payload));
+                    // --- 수정된 부분 끝 ---
                 }
                 else
                 {
