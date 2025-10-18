@@ -8,12 +8,13 @@
 #include "IfxSrc_reg.h"
 #include "aeb.h"
 
-#define TOF_DEFAULT_VALUE_MM   5000
+#define TOF_DEFAULT_VALUE_MM   5000  // 초기 거리값 (센서 미활성 시 기본값)
 
-void tofInit (void);
-void tofUpdateFromCAN (unsigned char *rxData);
-unsigned int tofGetValue (void);
-void tofOnOff (void);
+extern volatile bool aebEnableFlag;  // AEB 기능 활성화 여부
 
+void tofInit(void);
+void tofOnOff(void);
+void tofUpdateFromCAN(unsigned char *rxData);
+unsigned int tofGetValue(void);
 
 #endif /* BSW_SERVICE_TOF_H_ */

@@ -9,6 +9,16 @@ McmcanType g_mcmcan; /* Global MCMCAN configuration and control structure    */
 /*---------------------------------------------Function Implementations----------------------------------------------*/
 /*********************************************************************************************************************/
 
+
+/* Callback 함수 포인터 */
+static void (*tofCallback)(unsigned char *rxData) = 0;
+
+void canRegisterTofCallback(void (*callback)(unsigned char *)){
+    tofCallback = callback;
+}
+
+
+
 /* Default CAN Tx Handler */
 IFX_INTERRUPT(canTxIsrHandler, 0, ISR_PRIORITY_CAN_TX);
 void canTxIsrHandler (void)
@@ -26,9 +36,28 @@ void canRxIsrHandler (void)
     int rxLen;
     canRecvMsg(&rxID, rxData, &rxLen);
 
-    /* 상위 처리기로 메시지 전달 */
-    canHandleMessage(rxID, rxData, rxLen);
+    myPrintf("rxID: 0x%x\n", rxID);
+    myPrintf("cmdType: 0x%x\n", rxData[0]);
+    myPrintf("cmdData: %x\n", rxData[1]);
 
+    switch (rxID)
+    {
+        case CAN_TOF_ID :
+        {
+            if (tofCallback != NULL)
+                tofCallback(rxData);  // ToF 모듈에서 등록한 처리 함수 호출
+            break;
+        }
+        case CAN_SOA_ID :
+        {
+            unsigned char cmdType = rxData[0];
+            canSOAHandler(cmdType, rxData + 1, rxLen - 1);
+            break;
+        }
+        default :
+//            tofUpdateFromCAN(rxData);
+            break;
+    }
 }
 
 /* Function to initialize MCMCAN module and nodes related for this application use case */

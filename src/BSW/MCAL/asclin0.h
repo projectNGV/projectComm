@@ -13,7 +13,6 @@
 #include "IfxAsclin_bf.h"
 #include "priority.h"
 
-
 void asclin0InitUart(void);
 void asclin0OutUart(const unsigned char chr);
 int asclin0PollUart(unsigned char *chr);

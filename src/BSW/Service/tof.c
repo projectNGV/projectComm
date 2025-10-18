@@ -1,42 +1,41 @@
 #include "tof.h"
 
-static unsigned int g_TofValue;
-volatile bool tofFlag = false;
+static unsigned int g_TofValue;             // 현재 측정된 거리(mm)
+volatile bool aebEnableFlag = false;        // AEB 기능 ON/OFF 플래그
 
-void tofInit (void)
+void tofInit(void)
 {
-    canInit(BD_500K, CAN_NODE0);
+    canInit(BD_500K, CAN_NODE0);            // CAN 초기화
     canRegisterTofCallback(tofUpdateFromCAN);
-    g_TofValue = TOF_DEFAULT_VALUE_MM;
-    tofFlag = false;
+    g_TofValue = TOF_DEFAULT_VALUE_MM;      // 초기 거리값 설정
+    aebEnableFlag = false;                  // 기본: AEB 기능 비활성화
 }
 
+/* AEB 기능 On/Off 토글 (SOA 명령 or 수동 호출로 제어 가능) */
 void tofOnOff(void)
 {
-    if (tofFlag)
-    {
-        tofFlag = false;
-    }
-    else
-    {
-        tofFlag = true;
-    }
+    aebEnableFlag = !aebEnableFlag;         // 토글 방식 전환
 }
 
-void tofUpdateFromCAN (unsigned char *rxData)
+/* CAN으로부터 거리 데이터 수신 시 호출됨 */
+void tofUpdateFromCAN(unsigned char *rxData)
 {
     if (rxData == NULL) return;
 
-    unsigned short signal_strength = rxData[5] << 8 | rxData[4];
+    unsigned short signal_strength = (rxData[5] << 8) | rxData[4];
 
     if (signal_strength != 0)
     {
-        g_TofValue = rxData[2] << 16 | rxData[1] << 8 | rxData[0];
+        // 거리(mm) 계산
+        g_TofValue = (rxData[2] << 16) | (rxData[1] << 8) | rxData[0];
+
+        // AEB 상태 갱신 (거리 기반)
         updateAebFlagByTof(g_TofValue);
     }
 }
 
-unsigned int tofGetValue (void)
+/* 현재 거리값(mm)을 반환 */
+unsigned int tofGetValue(void)
 {
     return g_TofValue;
 }

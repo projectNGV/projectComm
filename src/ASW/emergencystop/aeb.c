@@ -1,83 +1,74 @@
 #include "aeb.h"
 
-/*********************************************************************************************************************/
+/* ==============================================================
+ * AEB (Autonomous Emergency Braking)
+ * - aebEnableFlag: 기능 ON/OFF 스위치 (SOA 명령 or 사용자 제어)
+ * - aebActiveFlag: 현재 긴급제동이 실제로 작동 중인지 표시
+ * ============================================================== */
 
-// AEB (Autonomous Emergency Braking) 작동 여부를 나타내는 플래그
-// 장애물이 일정 거리 이내에 감지되면 true로 설정되고, 긴급 제동이 수행됨
-volatile bool aebFlag = false;
+/* ─────────────── 외부 변수 ─────────────── */
+extern volatile bool aebEnableFlag;     // AEB 기능 활성화 여부
+extern MotorState motorState;           // 모터 상태 구조체 (aebActiveFlag 포함)
 
-// TOF 센서 작동 여부를 나타내는 플래그 (외부에서 선언됨)
-// true일 때만 거리 측정을 정상적으로 수행함
-extern volatile bool tofFlag;
-
-// 모터 상태를 담고 있는 구조체 변수 (현재 Duty, 방향 등 포함)
-extern MotorState motorState;
-
-/*********************************************************************************************************************/
-
-// 긴급 경고 부저 함수
-// 비상 상황 발생 시 부저를 켜고 끄는 패턴으로 경고음을 출력
-void emergencyBuzzer (void)
+/* ─────────────── 긴급 부저 경고 ─────────────── */
+void emergencyBuzzer(void)
 {
-    buzzerOn();        // 1차 삐—
-    delayMs(100);
-    buzzerOff();
-
-    delayMs(150);      // 짧은 공백
-
-    buzzerOn();        // 2차 삐—
-    delayMs(100);
+    buzzerOn(); delayMs(100);
+    buzzerOff(); delayMs(150);
+    buzzerOn(); delayMs(100);
     buzzerOff();
 }
 
-// 긴급 제동 수행 함수
-// AEB가 작동하면 현재 속도로 후진한 후 정지시킴
+/* ─────────────── 긴급 제동 수행 ───────────────
+ * - AEB가 활성화된 경우 현재 속도로 후진 후 정지
+ */
 void performEmergencyStop(void)
 {
-    motorMoveReverse(motorState.currentDuty);  // 현재 듀티만큼 후진
-    delayMs(REVERSE_TIME_MS);                  // 일정 시간 후진 유지
+    if (!motorState.aebActiveFlag) return;  // 긴급 제동 미작동이면 리턴
 
-    motorState.currentDuty = 0;                // 속도를 0으로 초기화
-    motorStop();                               // 차량 완전 정지
+    emergencyBuzzer();
+    motorMoveReverse(motorState.currentDuty); // 현재 속도로 후진
+    delayMs(REVERSE_TIME_MS);
+
+    motorState.currentDuty = 0;
+    motorStop();    // 정지
+
+//    myPrintf("[AEB] Emergency stop performed.\n");
 }
 
-// AEB 플래그 업데이트 함수
-// TOF 센서의 거리 값(g_TofValue)을 기반으로 aebFlag 값을 업데이트
-// g_TofValue: 현재 측정된 전방 거리(mm)
-void updateAebFlagByTof (unsigned int g_TofValue)
+/* ─────────────── AEB 상태 업데이트 ───────────────
+ * @param g_TofValue : 전방 거리(mm)
+ * ---------------------------------------------------
+ * 1. aebEnableFlag == false  → 기능 꺼짐, 제동 비활성화
+ * 2. DUTY_LIMIT_DISTANCE_MM 이하 → 속도 제한
+ * 3. AEB_DISTANCE_MM 이하 → 긴급제동 작동
+ * 4. SAFETY_DISTANCE_MM 이상 → 긴급제동 해제
+ */
+void updateAebFlagByTof(unsigned int g_TofValue)
 {
-    // TOF 센서가 꺼진 상태면 AEB도 무조건 OFF
-    if(tofFlag == false)
-    {
-        aebFlag = false;        // AEB 해제
-        g_TofValue = 5000;      // 거리 값을 충분히 멀다고 가정 (초기화용)
+    // (1) 기능 자체가 꺼져 있으면 긴급제동 해제
+    if (!aebEnableFlag) {
+        motorState.aebActiveFlag = false;
+        return;
     }
-    else
-    {
-        // AEB가 아직 작동하지 않은 상태일 때
-        if (!aebFlag)
-        {
-            // 일정 거리 이내라면 기본 듀티를 500으로 낮춤 (속도 제한)
-            if (g_TofValue <= DUTY_LIMIT_DISTANCE_MM)
-            {
-                motorState.baseDuty = 500;
-            }
 
-            // 충돌 위험 거리 이내일 경우 AEB 작동 플래그 설정
-            if (g_TofValue < AEB_DISTANCE_MM)
-            {
-                aebFlag = true;
-            }
+    // (2) AEB 기능 ON 상태 → 거리 기반 판단
+    if (!motorState.aebActiveFlag) {
+        // 근접 시 속도 제한
+        if (g_TofValue <= DUTY_LIMIT_DISTANCE_MM)
+            motorState.baseDuty = 500;
+
+        // 위험 거리 → 긴급 제동 ON
+        if (g_TofValue < AEB_DISTANCE_MM) {
+            motorState.aebActiveFlag = true;
+//            myPrintf("[AEB] Activated! Distance=%u mm\n", g_TofValue);
         }
-
-        // AEB가 이미 작동 중일 때 (차량이 멈춰있는 상태)
-        else
-        {
-            // 안전 거리 이상 확보된 경우 AEB 해제
-            if (g_TofValue >= SAFETY_DISTANCE_MM)
-            {
-                aebFlag = false;
-            }
+    }
+    // (3) AEB 이미 작동 중 → 안전 거리 확보 시 해제
+    else {
+        if (g_TofValue >= SAFETY_DISTANCE_MM) {
+            motorState.aebActiveFlag = false;
+//            myPrintf("[AEB] Released. Distance=%u mm\n", g_TofValue);
         }
     }
 }
