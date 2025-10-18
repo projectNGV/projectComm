@@ -1,24 +1,31 @@
 #include "stm.h"
 
 IFX_INTERRUPT(Stm0IsrHandler, 0, ISR_PRIORITY_STM0);
-void stm0IsrHandler(){
-    MODULE_STM0.CMP[0].B.CMPVAL = MODULE_STM0.TIM0.U + 100000000;
+void stm0IsrHandler(void)
+{
+    /* 다음 인터럽트 예약 (500ms 후) */
+    MODULE_STM0.CMP[0].B.CMPVAL = MODULE_STM0.TIM0.U + STM_TICK_500MS;
+
+    /* === 주기 작업 수행 === */
+    sendTofDistancePeriodic();   // ToF 주기 송신
 }
 
-
-void stmInterruptInit(){
+void stmInterruptInit(void)
+{
+    /* 비교기 설정 */
     MODULE_STM0.CMCON.B.MSIZE0 = 0x1F;
     MODULE_STM0.CMCON.B.MSTART0 = 0;
 
-    MODULE_STM0.ICR.B.CMP0OS = 1; // IR(SR) 선택
+    MODULE_STM0.ICR.B.CMP0OS = 1;   // SR(서비스 요청) 사용
+    MODULE_STM0.ICR.B.CMP0EN = 1;   // CMP0 비교기 활성화
 
-//    Ifx_SRC_SRCR_Bits* src = (Ifx_SRC_SRCR_Bits*) &MODULE_SRC.STM.STM[0].SR[1].B;
-//    src->SRPN = ISR_PRIORITY_STM0;
-//    src->TOS = 0;
-//    src->CLRR = 1;
-//    src->SRE = 1;
-//
-//    MODULE_STM0.ICR.B.CMP0EN = 1;
-//    MODULE_STM0.CMP[0].B.CMPVAL = (Ifx_UReg_32Bit) MODULE_STM0.TIM0.U + 100000000;
+    /* 인터럽트 소스 설정 */
+    Ifx_SRC_SRCR_Bits *src = (Ifx_SRC_SRCR_Bits*)&MODULE_SRC.STM.STM[0].SR[0].B;
+    src->SRPN = ISR_PRIORITY_STM0;
+    src->TOS  = 0;
+    src->CLRR = 1;
+    src->SRE  = 1;
 
+    /* 첫 비교값 설정 */
+    MODULE_STM0.CMP[0].B.CMPVAL = MODULE_STM0.TIM0.U + STM_TICK_500MS;
 }

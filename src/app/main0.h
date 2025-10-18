@@ -22,7 +22,10 @@
 #include "led.h"
 #include "buzzerport.h"
 #include "buzzer.h"
+#include "stm.h"
 #include "soa_handler.h"
+#include "soa_publisher.h"
+
 
 void main0(void);
 

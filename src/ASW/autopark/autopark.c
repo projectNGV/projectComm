@@ -10,7 +10,8 @@
 #include "led.h"
 #include "gpt12.h"
 #include "bluetooth.h"
-#include  "motor.h"
+#include "motor.h"
+#include "soa_publisher.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -344,8 +345,13 @@ void autoParkTune (void)
 
 void autoPark (void)
 {
+    sendAutoparkStateIfChanged(0x01); // 공간 탐색 중
     foundSpace();
+
+    sendAutoparkStateIfChanged(0x02); // 주차 중
     rotate();
     delayMs(MOTOR_STOP_DELAY);
     goBackWard();
+
+    sendAutoparkStateIfChanged(0x03); // 완료
 }

@@ -11,5 +11,6 @@ void systemInit(){
     ledInit();
     gpt12Init();
     buzzerInit();
-
+    stmInterruptInit();
+    soaPublisherInit();
 }

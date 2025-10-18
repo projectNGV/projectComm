@@ -11,12 +11,6 @@ void tofInit(void)
     aebEnableFlag = false;                  // 기본: AEB 기능 비활성화
 }
 
-/* AEB 기능 On/Off 토글 (SOA 명령 or 수동 호출로 제어 가능) */
-void tofOnOff(void)
-{
-    aebEnableFlag = !aebEnableFlag;         // 토글 방식 전환
-}
-
 /* CAN으로부터 거리 데이터 수신 시 호출됨 */
 void tofUpdateFromCAN(unsigned char *rxData)
 {

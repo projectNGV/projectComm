@@ -2,11 +2,10 @@
 
 // 모터 상태를 저장하는 구조체 변수 선언 및 초기화
 MotorState motorState = {
-    .baseDuty = 50,         // 기본 속도 (PWM Duty 0~100%)
     .currentDuty = 0,       // 현재 모터 Duty (정지 상태로 시작)
     .currentDir = '5',      // 초기 방향 (정지 상태)
-    .aebActiveFlag = FALSE, // AEB 비활성화 상태로 시작
-    .autoParkFlag = FALSE   // AutoPark 비활성화 상태로 시작
+    .aebActiveFlag = false, // AEB 비활성화 상태로 시작
+    .autoParkFlag = false   // AutoPark 비활성화 상태로 시작
 };
 
 void main0 (void)

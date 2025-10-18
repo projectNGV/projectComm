@@ -1,19 +1,14 @@
-/*
- * stm.h
- *
- *  Created on: 2025. 6. 25.
- *      Author: USER
- */
-
 #ifndef BSW_DRIVER_STM_H_
 #define BSW_DRIVER_STM_H_
 
 #include "IfxStm.h"
-
+#include "soa_publisher.h"
 #include "priority.h"
 
+#define STM_TICK_500MS   100000000ULL   // 100 MHz 기준 500ms (0.5초)
+
 void stm0IsrHandler(void);
-void stmInterruptInit();
+void stmInterruptInit(void);
 
 
 #endif /* BSW_DRIVER_STM_H_ */

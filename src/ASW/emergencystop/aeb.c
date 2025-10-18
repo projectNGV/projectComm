@@ -6,10 +6,6 @@
  * - aebActiveFlag: 현재 긴급제동이 실제로 작동 중인지 표시
  * ============================================================== */
 
-/* ─────────────── 외부 변수 ─────────────── */
-extern volatile bool aebEnableFlag;     // AEB 기능 활성화 여부
-extern MotorState motorState;           // 모터 상태 구조체 (aebActiveFlag 포함)
-
 /* ─────────────── 긴급 부저 경고 ─────────────── */
 void emergencyBuzzer(void)
 {
@@ -24,7 +20,11 @@ void emergencyBuzzer(void)
  */
 void performEmergencyStop(void)
 {
-    if (!motorState.aebActiveFlag) return;  // 긴급 제동 미작동이면 리턴
+    if (!motorState.aebActiveFlag)
+    {
+        motorState.aebActiveFlag = true;
+        sendAebStateIfChanged();
+    }
 
     emergencyBuzzer();
     motorMoveReverse(motorState.currentDuty); // 현재 속도로 후진
@@ -49,6 +49,7 @@ void updateAebFlagByTof(unsigned int g_TofValue)
     // (1) 기능 자체가 꺼져 있으면 긴급제동 해제
     if (!aebEnableFlag) {
         motorState.aebActiveFlag = false;
+        sendAebStateIfChanged();
         return;
     }
 
@@ -56,11 +57,12 @@ void updateAebFlagByTof(unsigned int g_TofValue)
     if (!motorState.aebActiveFlag) {
         // 근접 시 속도 제한
         if (g_TofValue <= DUTY_LIMIT_DISTANCE_MM)
-            motorState.baseDuty = 500;
+            motorState.currentDuty = 500;
 
         // 위험 거리 → 긴급 제동 ON
         if (g_TofValue < AEB_DISTANCE_MM) {
             motorState.aebActiveFlag = true;
+            sendAebStateIfChanged();
 //            myPrintf("[AEB] Activated! Distance=%u mm\n", g_TofValue);
         }
     }
@@ -68,6 +70,7 @@ void updateAebFlagByTof(unsigned int g_TofValue)
     else {
         if (g_TofValue >= SAFETY_DISTANCE_MM) {
             motorState.aebActiveFlag = false;
+            sendAebStateIfChanged();
 //            myPrintf("[AEB] Released. Distance=%u mm\n", g_TofValue);
         }
     }

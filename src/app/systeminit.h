@@ -11,6 +11,8 @@
 #include "gpt12.h"
 #include "led.h"
 #include "buzzer.h"
+#include "stm.h"
+#include "soa_publisher.h"
 
 void systemInit(void);
 

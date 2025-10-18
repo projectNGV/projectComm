@@ -48,7 +48,7 @@ void canRxIsrHandler (void)
                 tofCallback(rxData);  // ToF 모듈에서 등록한 처리 함수 호출
             break;
         }
-        case CAN_SOA_ID :
+        case CAN_SOA_CONTROL_ID :
         {
             unsigned char cmdType = rxData[0];
             canSOAHandler(cmdType, rxData + 1, rxLen - 1);
@@ -151,7 +151,7 @@ void canSetFilterMask (uint32 id, uint32 mask)
     IfxCan_Can_setStandardFilter(&g_mcmcan.canDstNode, &g_mcmcan.canFilter);
 }
 
-void canSendMsg (unsigned int id, const char *txData, int len)
+void canSendMsg (unsigned int id, const unsigned char *txData, int len)
 {
     /* Initialization of the TX message with the default configuration */
     IfxCan_Can_initMessage(&g_mcmcan.txMsg);

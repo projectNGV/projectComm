@@ -4,17 +4,16 @@
 
 #include "motor.h"
 #include "led.h"
-#include "Ifx_Types.h"
+#include "stdbool.h"
 
 #define Forward 1
 #define Backward 0
 
 typedef struct {
-    int baseDuty;               // 사용자 설정 Duty (기본 속도)
     int currentDuty;            // 현재 PWM Duty
     char currentDir;            // 현재 주행 방향 ('8': 전진, '2': 후진 등)
-    boolean aebActiveFlag;      // AEB 기능 활성화 여부 (TRUE: AEB 작동 중)
-    boolean autoParkFlag;       // AutoPark 기능 요청 여부
+    bool aebActiveFlag;         // AEB 기능 활성화 여부 (TRUE: AEB 작동 중)
+    bool autoParkFlag;          // AutoPark 기능 요청 여부
 } MotorState;
 
 // 다른 모듈에서 접근 가능하도록 extern 선언
