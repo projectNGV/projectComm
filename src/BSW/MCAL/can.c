@@ -1,4 +1,8 @@
+/*********************************************************************************************************************/
+/*-----------------------------------------------------Includes------------------------------------------------------*/
+/*********************************************************************************************************************/
 #include "can.h"
+#include "cantp.h"
 
 /*********************************************************************************************************************/
 /*-------------------------------------------------Global variables--------------------------------------------------*/
@@ -25,26 +29,14 @@ void canTxIsrHandler (void)
 {
     /* Clear the "Transmission Completed" interrupt flag */
     IfxCan_Node_clearInterruptFlag(g_mcmcan.canSrcNode.node, IfxCan_Interrupt_transmissionCompleted);
+
+    sendConsecutiveFrame();
 }
 
 /* Default CAN Rx Handler */
 IFX_INTERRUPT(canRxIsrHandler, 0, ISR_PRIORITY_CAN_RX);
 void canRxIsrHandler (void)
 {
-//    unsigned int rxID;
-//    char rxData[8] = {0, };
-//    int rxLen;
-//    canRecvMsg(&rxID, rxData, &rxLen);
-//
-//    switch (rxID)
-//    {
-//        case CAN_TOF_ID :
-//            tofUpdateFromCAN(rxData);
-//            break;
-//        default :
-//            tofUpdateFromCAN(rxData);
-//            break;
-//    }
 
     unsigned int rxID;
     unsigned char rxData[8] = {0, };
@@ -58,6 +50,25 @@ void canRxIsrHandler (void)
                 tofCallback(rxData);  // ToF 모듈에서 등록한 처리 함수 호출
             }
             break;
+        case UDS_REQUEST_CAN_ID: // UDS 진단 요청 수신
+        {
+            uint8 pci_type = (rxData[0] & 0xF0) >> 4; // 프레임 종류 식별
+
+            switch (pci_type) {
+                case 0: // Single Frame (SF)
+                    handleSingleFrame(rxData);
+                    break;
+                case 1: // First Frame (FF)
+                    handleFirstFrame(rxData);
+                    break;
+                case 2: // Consecutive Frame (CF)
+                    handleConsecutiveFrame(rxData);
+                    break;
+                case 3: // flow control Frame (FC)
+                    handleFlowControl(rxData);
+            }
+            break;
+        }
         default :
 //            tofUpdateFromCAN(rxData);
             break;

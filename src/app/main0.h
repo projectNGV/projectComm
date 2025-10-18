@@ -23,6 +23,8 @@
 #include "buzzerport.h"
 #include "buzzer.h"
 #include "auth.h"
+#include "cantp.h"
+#include "uds.h"
 
 void main0(void);
 

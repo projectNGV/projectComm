@@ -14,13 +14,15 @@ void main0 (void)
     systemInit();
 
     // 사용자 인증 절차 실행(암호 기반 시동)
-    authenticate();
+    //authenticate();
 
     while (1)
     {
         // 현재 상태에 따라 차량의 동작을 제어하는 상태 머신 처리
         // 사용자의 키 입력, 센서 값 등에 따라 상태를 변경하고 그에 맞는 행동 수행
         handleStateMachine(&motorState);
+
+        UDS_HandlePeriodicTransmission(); // 주기적 전송 처리 함수 호출
     }
 
 }

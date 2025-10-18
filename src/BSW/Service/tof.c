@@ -1,6 +1,7 @@
 #include "tof.h"
+#include "stm.h" //resetTofTimeoutTimer()
 
-static unsigned int g_TofValue;
+unsigned int g_TofValue;
 volatile bool tofFlag = false;
 
 void tofInit (void)
@@ -33,6 +34,8 @@ void tofUpdateFromCAN (unsigned char *rxData)
     {
         g_TofValue = rxData[2] << 16 | rxData[1] << 8 | rxData[0];
         updateAebFlagByTof(g_TofValue);
+
+        resetTofTimeoutTimer();
     }
 }
 
