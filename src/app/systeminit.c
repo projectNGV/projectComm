@@ -12,4 +12,5 @@ void systemInit(void) {
     gpt12Init();
     buzzerInit();
     stmInit();
+    session_init();
 }

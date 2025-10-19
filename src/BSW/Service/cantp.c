@@ -145,33 +145,25 @@ void handleFirstFrame(const unsigned char* canData) {
 }
 
 void handleConsecutiveFrame(const unsigned char* canData) {
-    // 1. 현재 CF를 기다리는 상태가 아니면, 이 프레임은 무시한다.
     if (g_iso_tp_rx_state != ISO_TP_STATE_WAIT_CF) {
         return; // 예상치 못한 프레임
     }
 
-    // 2. PCI 바이트에서 순서 번호(Sequence Number)를 추출한다.
     uint8_t sequenceNumber = canData[0] & 0x0F;
 
-    // 3. 기대했던 순서 번호가 맞는지 확인한다.
     if (sequenceNumber == g_rx_expected_seq_num) {
-        // 4. 버퍼에 복사할 데이터의 실제 길이를 계산한다. (마지막 프레임은 7바이트보다 짧을 수 있음)
         uint16_t remainingBytes = g_uds_rx_total_size - g_uds_rx_received_size;
         uint8_t bytesToCopy = (remainingBytes > 7) ? 7 : remainingBytes;
 
-        // 5. 데이터 조각을 재조립 버퍼의 올바른 위치에 복사한다.
         memcpy(&g_uds_rx_buffer[g_uds_rx_received_size], &canData[1], bytesToCopy);
 
-        // 6. 수신된 크기와 다음 순서 번호를 업데이트한다.
         g_uds_rx_received_size += bytesToCopy;
         g_rx_expected_seq_num = (g_rx_expected_seq_num + 1) % 16; // 15 다음에는 0으로 돌아감
 
-        ////
         g_rx_block_frame_count++;
 
-        // 7. 모든 데이터 조각을 다 받았는지 확인한다.
-        if (g_uds_rx_received_size >= g_uds_rx_total_size)
-        {
+        if (g_uds_rx_received_size >= g_uds_rx_total_size) {
+            // 모든 데이터 조각을 다 받았는지 확인
             // ****** debug ******
             myPrintf("\n--- Multi-frame Message Reassembled ---\n");
             myPrintf("Total Length: %d bytes\n", g_uds_rx_total_size);
@@ -181,10 +173,8 @@ void handleConsecutiveFrame(const unsigned char* canData) {
 //            }
             myPrintf("\n---------receive all consecutive frame--------\n\n");
 
-            // 모든 데이터 수신 완료! 상위 UDS 처리 함수를 호출한다.
             UDS_HandleMessage((uint8_t*)g_uds_rx_buffer, g_uds_rx_total_size);
 
-            // 상태를 다시 초기화하여 다음 메시지를 받을 준비를 한다.
             g_iso_tp_rx_state = ISO_TP_STATE_IDLE;
         } else if (FLOW_CONTROL_BLOCK_SIZE > 0 && g_rx_block_frame_count == FLOW_CONTROL_BLOCK_SIZE) { // 아직 받을 데이터가 남았고, Block Size만큼 프레임을 다 받았다면
             myPrintf("Block complete. Sending next Flow Control.\n");
@@ -192,8 +182,6 @@ void handleConsecutiveFrame(const unsigned char* canData) {
             sendFlowControl(0, FLOW_CONTROL_BLOCK_SIZE, FLOW_CONTROL_SEPARATION_TIME_MS);
         }
     } else {
-        // 순서가 맞지 않는 프레임이 도착함. 통신 오류 처리.
-        // 상태를 초기화하고 오류를 로그에 남기는 등의 처리를 할 수 있음.
         g_iso_tp_rx_state = ISO_TP_STATE_IDLE;
         myPrintf("consecutive frame error\n");
     }

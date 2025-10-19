@@ -29,6 +29,8 @@
 /*********************************************************************************************************************/
 /*-----------------------------------------------------Includes------------------------------------------------------*/
 /*********************************************************************************************************************/
+#include "sidhandler.h"
+#include "routinecontrol.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -50,7 +52,40 @@
 /*---------------------------------------------Function Implementations----------------------------------------------*/
 /*********************************************************************************************************************/
 
-
 /*
 0x31 (RoutineControl) 등 루틴 제어 관련 SID 핸들러 포함.
 */
+
+// 0x31: Routine Control Handler
+void handleSID31(const uint8_t* data, uint16_t length, const uint8_t sid) {
+    // 세션 체크: Extended 세션 필요
+    if (session_getCurrent() != SESSION_EXTENDED) {
+        sendNegativeResponse(sid, UDS_NRC_CONDITIONS_NOT_CORRECT); // 0x22
+        return;
+    }
+
+    if (length < 4) { // SID(1) + SubFunc(1) + RID(2)
+        sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
+        return;
+    }
+
+    uint8_t subFunction = data[1];
+    uint16_t rid = ((uint16_t)data[2] << 8) | data[3];
+
+    if (subFunction == 0x01) { // startRoutine
+        if (rid == UDS_RID_MOTOR_FORWARD_TEST || rid == UDS_RID_MOTOR_REVERSE_TEST) {
+            uint8_t pos_payload[4];
+            pos_payload[0] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x71
+            pos_payload[1] = subFunction;
+            pos_payload[2] = data[2]; // RID High
+            pos_payload[3] = data[3]; // RID Low
+            CANTP_SendResponse(pos_payload, sizeof(pos_payload));
+
+            startRoutine(rid); // 실제 루틴 실행
+        } else {
+            sendNegativeResponse(sid, UDS_NRC_REQUEST_OUT_OF_RANGE); // 0x31
+        }
+    } else {
+        sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED); // 0x12
+    }
+}

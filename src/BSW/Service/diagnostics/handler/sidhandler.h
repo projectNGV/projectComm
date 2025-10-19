@@ -32,6 +32,11 @@
 /*-----------------------------------------------------Includes------------------------------------------------------*/
 /*********************************************************************************************************************/
 #include <stdint.h>
+#include "cantp.h"
+#include "session.h"
+#include "uds.h"
+
+#include "uart.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -60,6 +65,8 @@
     UDS_NRC_INVALID_KEY = 0x35,
     UDS_NRC_UPLOAD_DOWNLOAD_NOT_ACCEPTED = 0x70,
     UDS_NRC_GENERAL_PROGRAMMING_FAILURE = 0x72,
+    UDS_NRC_SUBFUNCTION_NOT_SUPPORTED_IN_ACTIVE_SESSION = 0x7E,
+    UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION = 0x7F,
 } UDS_NegativeResponseCode;
 
 /*********************************************************************************************************************/
@@ -69,12 +76,29 @@
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
+// Session Control Group
+void handleSID10(const uint8_t* data, uint16_t length, const uint8_t sid); // Diagnostic Session Control
+void handleSID11(const uint8_t* data, uint16_t length, const uint8_t sid); // ECU Reset
+void handleSID3E(const uint8_t* data, uint16_t length, const uint8_t sid); // Tester Present
+
 // Read Data Group
 void handleSID22(const uint8_t* data, uint16_t length, const uint8_t sid); // Read Data By Identifier
 void handleSID2A(const uint8_t* data, uint16_t length, const uint8_t sid); // Read Data By Periodic Identifier
 
-// Session Control Group
-void handleSID3E(const uint8_t* data, uint16_t length, const uint8_t sid); // Tester Present
+// Write Data Group
+void handleSID2E(const uint8_t* data, uint16_t length, const uint8_t sid); // Write Data By Identifier
 
+// DTC Group
+void handleSID19(const uint8_t* data, uint16_t length, const uint8_t sid); // Read DTC Information
+// void handleSID14(const uint8_t* data, uint16_t length); // Clear Diagnostic Information
+
+// Routine Control Group
+void handleSID31(const uint8_t* data, uint16_t length, const uint8_t sid); // Routine Control
+
+// Upload/Download Group
+// void handleSID34(const uint8_t* data, uint16_t length); // Request Download
+// void handleSID35(const uint8_t* data, uint16_t length); // Request Upload
+// void handleSID36(const uint8_t* data, uint16_t length); // Transfer Data
+// void handleSID37(const uint8_t* data, uint16_t length); // Request Transfer Exit
 
 #endif /* BSW_SERVICE_DIAGNOSTICS_HANDLER_SIDHANDLER_H_ */

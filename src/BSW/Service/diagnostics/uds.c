@@ -30,12 +30,12 @@
 /*-----------------------------------------------------Includes------------------------------------------------------*/
 /*********************************************************************************************************************/
 #include "uds.h"
+#include "can.h"
 #include "cantp.h"      // 응답 전송을 위해 CAN-TP 계층 함수를 호출하기 위함
 //#include "uart.h"
-#include "tof.h"        // g_TofValue 사용
+#include "tof.h"        // tofGetValue() 사용
 #include <string.h>
-#include "stm.h"
-#include "sidhandler.h"
+
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -79,14 +79,6 @@ typedef enum
 /*********************************************************************************************************************/
 /*-------------------------------------------------Global variables--------------------------------------------------*/
 /*********************************************************************************************************************/
-PeriodicTransmission g_periodicTasks[MAX_PERIODIC_TASKS] = {
-    { .did = UDS_DID_TOF_SENSOR, .intervalMs = 200, .isActive = 0, .timer = 0 },
-    { .did = UDS_DID_LEFT_ULTRASONIC_SENSOR, .intervalMs = 300, .isActive = 0, .timer = 0 },
-    // 나머지 슬롯은 0으로 초기화
-    {0, 0, 0, 0},
-    {0, 0, 0, 0},
-    {0, 0, 0, 0}
-};
 
 /*********************************************************************************************************************/
 /*--------------------------------------------Private Variables/Constants--------------------------------------------*/
@@ -103,6 +95,17 @@ PeriodicTransmission g_periodicTasks[MAX_PERIODIC_TASKS] = {
 void UDS_HandleMessage(const uint8_t* data, uint16_t length) {
     uint8_t sid = data[0];
     switch (sid) {
+        // Session Control Group
+        case UDS_SERVICE_DIAGNOSTIC_SESSION_CONTROL:
+            handleSID10(data, length, sid);
+            break;
+        case UDS_SERVICE_ECU_RESET:
+            handleSID11(data, length, sid);
+            break;
+        case UDS_SERVICE_TESTER_PRESENT:
+            handleSID3E(data, length, sid);
+            break;
+
         // Read Data Group
         case UDS_SERVICE_READ_DATA_BY_IDENTIFIER:
             handleSID22(data, length, sid);
@@ -111,9 +114,19 @@ void UDS_HandleMessage(const uint8_t* data, uint16_t length) {
             handleSID2A(data, length, sid);
             break;
 
-        // Session Control Group
-        case UDS_SERVICE_TESTER_PRESENT:
-            handleSID3E(data, length, sid);
+        // Write Data Group
+        case UDS_SERVICE_WRITE_DATA_BY_IDENTIFIER:
+            handleSID2E(data, length, sid);
+            break;
+
+        // DTC Group
+        case UDS_SERVICE_READ_DTC_INFORMATION:
+            handleSID19(data, length, sid);
+            break;
+
+        // Routine Control Group
+        case UDS_SERVICE_ROUTINE_CONTROL:
+            handleSID31(data, length, sid);
             break;
 
         default:
@@ -129,43 +142,4 @@ void sendNegativeResponse(uint8_t sid, uint8_t nrc) {
     responseNRC[2] = nrc;                       // Negative Response Code
 
     CANTP_SendResponse(responseNRC, 3);
-}
-
-void UDS_HandlePeriodicTransmission(void) {
-    for (int i = 0; i < MAX_PERIODIC_TASKS; i++) {
-        // 작업이 활성화 상태이고 타이머가 0이 되었는지 확인
-        if (g_periodicTasks[i].isActive && g_periodicTasks[i].timer == 0) {
-
-            // 어떤 센서(DID)를 보낼 차례인지 확인
-            switch (g_periodicTasks[i].did) {
-                case UDS_DID_TOF_SENSOR:
-                {
-                    uint8_t payload[5];
-                    payload[0] = (g_periodicTasks[i].did >> 8) & 0xFF;
-                    payload[1] = g_periodicTasks[i].did & 0xFF;
-
-                    // g_TofValue 값 확인 (타임아웃 시 TOF_INVALID_VALUE)
-                    if (tofGetValue() != TOF_INVALID_VALUE) {
-                        payload[2] = (tofGetValue() >> 16) & 0xFF;
-                        payload[3] = (tofGetValue() >> 8) & 0xFF;
-                        payload[4] = tofGetValue() & 0xFF;
-                    } else {
-                        payload[2] = (TOF_INVALID_VALUE >> 16);
-                        payload[3] = (TOF_INVALID_VALUE >> 16);
-                        payload[4] = TOF_INVALID_VALUE & 0xFF;
-                    }
-                    CANTP_SendResponse(payload, sizeof(payload));
-                    break;
-                }
-                case UDS_DID_LEFT_ULTRASONIC_SENSOR:
-                {
-                    break;
-                }
-                // 여기에 다른 센서 케이스들을 추가할 수 있습니다.
-            }
-
-            // 다음 전송을 위해 타이머 재설정
-            g_periodicTasks[i].timer = g_periodicTasks[i].intervalMs;
-        }
-    }
 }

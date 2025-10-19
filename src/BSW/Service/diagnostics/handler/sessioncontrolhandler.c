@@ -29,9 +29,8 @@
 /*********************************************************************************************************************/
 /*-----------------------------------------------------Includes------------------------------------------------------*/
 /*********************************************************************************************************************/
-#include "uds.h"       // sendNegativeResponse, UDS_POSITIVE_RESPONSE_SID 등 사용
 #include "sidhandler.h"
-#include "cantp.h"     // CANTP_SendResponse 사용
+#include "session.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -60,15 +59,84 @@
 0x3E (TesterPresent) 등 세션 및 통신 제어 관련 SID 핸들러 포함.
 */
 
-/* ---- 0x3E: Tester Present Handler ---- */
+// 0x10: Diagnostic Session Control Handler
+void handleSID10(const uint8_t* data, uint16_t length, const uint8_t sid) {
+    // 세션 체크 불필요 (모든 세션에서 허용)
+
+    if (length != 2) {
+        sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
+        return;
+    }
+
+    uint8_t subFunction = data[1];
+    uint8_t suppressPosRsp = subFunction & 0x80;
+    uint8_t sessionType = subFunction & 0x7F;
+
+    if (sessionType == SESSION_DEFAULT || sessionType == SESSION_PROGRAMMING || sessionType == SESSION_EXTENDED) {
+        session_setCurrent((DiagnosticSession)sessionType);
+
+        if (!suppressPosRsp) {
+            uint16_t p2_server_value = P2_SERVER_MAX_MS;
+            uint16_t p2_star_server_value = P2_STAR_SERVER_MAX_MS / 10;
+
+            uint8_t payload[6];
+            payload[0] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x50
+            payload[1] = sessionType;
+            payload[2] = (uint8_t)(p2_server_value >> 8);
+            payload[3] = (uint8_t)(p2_server_value & 0xFF);
+            payload[4] = (uint8_t)(p2_star_server_value >> 8);
+            payload[5] = (uint8_t)(p2_star_server_value & 0xFF);
+
+            CANTP_SendResponse(payload, sizeof(payload));
+        }
+    } else {
+        sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED); // 0x12
+    }
+}
+
+// 0x11: ECU Reset Handler
+void handleSID11(const uint8_t* data, uint16_t length, const uint8_t sid) {
+    // 세션 체크: Extended 세션에서만 허용 (다른 개발자 코드와 다름, 확인 필요)
+    if (session_getCurrent() != SESSION_EXTENDED) {
+         sendNegativeResponse(sid, UDS_NRC_SUBFUNCTION_NOT_SUPPORTED_IN_ACTIVE_SESSION); // 0x7E
+         // 또는 sendNegativeResponse(sid, UDS_NRC_CONDITIONS_NOT_CORRECT); // 0x22
+         return;
+    }
+
+    if (length != 2) {
+        sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
+        return;
+    }
+
+    uint8_t subFunction = data[1];
+    uint8_t suppressPosRsp = subFunction & 0x80;
+    uint8_t resetType = subFunction & 0x7F;
+
+    if (resetType == 0x01) { // hardReset
+        if (!suppressPosRsp) {
+            uint8_t payload[2];
+            payload[0] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x51
+            payload[1] = resetType;                      // 0x01
+            CANTP_SendResponse(payload, sizeof(payload));
+            // delayMs(100); // 🚨 응답 전송 보장 딜레이
+        }
+        myPrintf("UDS: Performing ECU Hard Reset...\n");
+        // 실제 시스템 리셋 함수 호출
+        // IfxScuWdt_performSystemReset();
+    } else {
+        sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED); // 0x12
+    }
+}
+
+// 0x3E: Tester Present Handler
 void handleSID3E(const uint8_t* data, uint16_t length, const uint8_t sid) {
 //    uint8_t sid = data[0]; // SID는 항상 0x3E
 
-//    uint8_t response_msg_tp[2];
-//    response_msg_tp[0] = UDS_POSITIVE_RESPONSE_SID(sid);
-//    response_msg_tp[1] = 0x80;
+//    uint8_t payload[2];
+//    payload[0] = UDS_POSITIVE_RESPONSE_SID(sid);
+//    payload[1] = 0x80;
 //
-//    CANTP_SendResponse(response_msg_tp, 2);
+//    CANTP_SendResponse(payload, 2);
 
     if (length != 2) {
         sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
@@ -84,10 +152,12 @@ void handleSID3E(const uint8_t* data, uint16_t length, const uint8_t sid) {
         return;
     }
 
+    session_resetTimer();
+
     if (!suppressPosRsp) {
-        uint8_t response_msg_tp[2];
-        response_msg_tp[0] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x7E
-        response_msg_tp[1] = subFunctionCode;                // 0x00
-        CANTP_SendResponse(response_msg_tp, sizeof(response_msg_tp));
+        uint8_t payload[2];
+        payload[0] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x7E
+        payload[1] = subFunctionCode;                // 0x00
+        CANTP_SendResponse(payload, sizeof(payload));
     }
 }

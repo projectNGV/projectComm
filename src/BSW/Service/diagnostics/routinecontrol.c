@@ -1,5 +1,5 @@
 /**********************************************************************************************************************
- * \file dtchandler.c
+ * \file routinecontrol.c
  * \copyright Copyright (C) Infineon Technologies AG 2019
  * 
  * Use of this file is subject to the terms of use agreed between (i) you or the company in which ordinary course of 
@@ -29,8 +29,9 @@
 /*********************************************************************************************************************/
 /*-----------------------------------------------------Includes------------------------------------------------------*/
 /*********************************************************************************************************************/
-#include "sidhandler.h"
-#include "dtc.h"
+#include "routinecontrol.h"
+#include "motor.h"
+#include "util.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -47,62 +48,45 @@
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
+static void runMotorForwardTest(void);
 
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
 /*********************************************************************************************************************/
+// RID 0x0201에 해당하는 스크립트
+static void runMotorForwardTest(void)
+{
+    // 30% 듀티(300)로 5초(5000ms)간 정회전
+    motorMoveForward(300);
+    delayMs(5000);
+    motorStop();
+}
+
+// RID 0x0202에 해당하는 스크립트
+static void runMotorReverseTest(void)
+{
+    // 30% 듀티(300)로 5초(5000ms)간 역회전
+    motorMoveReverse(300);
+    delayMs(5000);
+    motorStop();
+}
 
 
-/*
-0x14 (ClearDiagnosticInformation),
-0x19 (ReadDTCInformation),
-0x85 (ControlDTCSetting) 등 DTC 관련 SID 핸들러 포함.
-*/
+void startRoutine(uint16 rid)
+{
+    // RID 메뉴판에 따라 적절한 테스트 스크립트를 실행합니다.
+    switch (rid)
+    {
+        case UDS_RID_MOTOR_FORWARD_TEST:
+            runMotorForwardTest();
+            break;
 
-/* ---- 0x19: Read DTC Information Handler ---- */
-void handleSID19(const uint8_t* data, uint16_t length, const uint8_t sid) {
-    // 세션 체크 (Default 이상 허용)
-    if (session_getCurrent() < SESSION_DEFAULT) {
-        sendNegativeResponse(sid, UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION); // 0x7F
-        return;
-    }
+        case UDS_RID_MOTOR_REVERSE_TEST:
+            runMotorReverseTest();
+            break;
 
-    if (length < 2) { // SID + SubFunction
-        sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        return;
-    }
+        default:
 
-    uint8_t subFunction = data[1];
-
-    if (subFunction == 0x02) { // reportDTCByStatusMask
-        if (length != 3) {
-             sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-             return;
-        }
-        uint8_t statusMask = data[2];
-
-        uint8_t payload[MAX_DTCS * 4 + 3];
-        uint16_t plen = 0;
-
-        payload[plen++] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x59
-        payload[plen++] = subFunction;                    // 0x02
-        payload[plen++] = statusMask;                     // Status Mask 에코
-
-        for (int i = 0; i < MAX_DTCS; i++) {
-            if (g_dtcStorage[i].dtc_code != 0 && (g_dtcStorage[i].status & statusMask) != 0) {
-                if (plen + 4 <= sizeof(payload)) {
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 16);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 8);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code & 0xFF);
-                    payload[plen++] = g_dtcStorage[i].status;
-                } else {
-                    break; // 버퍼 부족
-                }
-            }
-        }
-        CANTP_SendResponse(payload, plen);
-
-    } else {
-        sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED); // 0x12
+            break;
     }
 }

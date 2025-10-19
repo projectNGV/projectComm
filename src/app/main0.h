@@ -24,7 +24,7 @@
 #include "buzzer.h"
 #include "auth.h"
 #include "cantp.h"
-#include "uds.h"
+#include "diagnosticsdata.h"
 
 void main0(void);
 

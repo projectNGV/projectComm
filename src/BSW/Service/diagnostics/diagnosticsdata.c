@@ -1,5 +1,5 @@
 /**********************************************************************************************************************
- * \file dtchandler.c
+ * \file diagnosticsdata.c
  * \copyright Copyright (C) Infineon Technologies AG 2019
  * 
  * Use of this file is subject to the terms of use agreed between (i) you or the company in which ordinary course of 
@@ -29,8 +29,10 @@
 /*********************************************************************************************************************/
 /*-----------------------------------------------------Includes------------------------------------------------------*/
 /*********************************************************************************************************************/
-#include "sidhandler.h"
-#include "dtc.h"
+#include "diagnosticsdata.h"
+#include "stm.h"
+#include "tof.h"
+#include "cantp.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -39,6 +41,33 @@
 /*********************************************************************************************************************/
 /*-------------------------------------------------Global variables--------------------------------------------------*/
 /*********************************************************************************************************************/
+PeriodicTransmission g_periodicTasks[MAX_PERIODIC_TASKS] = {
+    { .did = UDS_DID_TOF_SENSOR, .intervalMs = 200, .isActive = 0, .timer = 0 },
+    { .did = UDS_DID_LEFT_ULTRASONIC_SENSOR, .intervalMs = 300, .isActive = 0, .timer = 0 },
+    // 나머지 슬롯은 0으로 초기화
+    {0, 0, 0, 0},
+    {0, 0, 0, 0},
+    {0, 0, 0, 0}
+};
+
+SystemConfig g_config;
+
+// ECU가 SID 0x22로 지원하는 모든 DID 목록
+uint16 SUPPORTED_DIDS[] = {
+        UDS_DID_TOF_SENSOR, // 레이저 센서 길이 측정
+        UDS_DID_LEFT_ULTRASONIC_SENSOR, // 좌측 초음파 센서 측정
+        UDS_DID_RIGHT_ULTRASONIC_SENSOR, // 우측 초음파 센서 측정
+        UDS_DID_REAR_ULTRASONIC_SENSOR, // 후방 초음파 센서 측정
+        UDS_DID_ACTIVE_DIAGNOSTIC_SESSION, // Diagnostic Session Identifier(세션 정보 요청)
+        UDS_DID_VEHICLE_MANUFACTURER_ECU_PART_NUMBER, // ECU 부품 번호
+        UDS_DID_ECU_SERIAL_NUMBER, // ECU 시리얼 번호
+        UDS_DID_VEHICLE_IDENTIFICATION_NUMBER, // 차대번호(VIN)
+        UDS_DID_ECU_SUPPLIER_INFORMATION, // ECU 공급업체 정보
+        UDS_DID_ECU_MANUFACTURING_DATE, // ECU 제조 날짜
+        UDS_DID_SUPPORTED_DIDS_LIST  // 지원 DID 목록
+};
+
+uint8 NUM_SUPPORTED_DIDS = sizeof(SUPPORTED_DIDS) / sizeof(uint16);
 
 /*********************************************************************************************************************/
 /*--------------------------------------------Private Variables/Constants--------------------------------------------*/
@@ -51,58 +80,62 @@
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
 /*********************************************************************************************************************/
+void UDS_HandlePeriodicTransmission(void) {
+    for (int i = 0; i < MAX_PERIODIC_TASKS; i++) {
+        // 작업이 활성화 상태이고 타이머가 0이 되었는지 확인
+        if (g_periodicTasks[i].isActive && g_periodicTasks[i].timer == 0) {
 
+            // 어떤 센서(DID)를 보낼 차례인지 확인
+            switch (g_periodicTasks[i].did) {
+                case UDS_DID_TOF_SENSOR:
+                {
+                    uint8_t payload[5];
+                    payload[0] = (g_periodicTasks[i].did >> 8) & 0xFF;
+                    payload[1] = g_periodicTasks[i].did & 0xFF;
 
-/*
-0x14 (ClearDiagnosticInformation),
-0x19 (ReadDTCInformation),
-0x85 (ControlDTCSetting) 등 DTC 관련 SID 핸들러 포함.
-*/
-
-/* ---- 0x19: Read DTC Information Handler ---- */
-void handleSID19(const uint8_t* data, uint16_t length, const uint8_t sid) {
-    // 세션 체크 (Default 이상 허용)
-    if (session_getCurrent() < SESSION_DEFAULT) {
-        sendNegativeResponse(sid, UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION); // 0x7F
-        return;
-    }
-
-    if (length < 2) { // SID + SubFunction
-        sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        return;
-    }
-
-    uint8_t subFunction = data[1];
-
-    if (subFunction == 0x02) { // reportDTCByStatusMask
-        if (length != 3) {
-             sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-             return;
-        }
-        uint8_t statusMask = data[2];
-
-        uint8_t payload[MAX_DTCS * 4 + 3];
-        uint16_t plen = 0;
-
-        payload[plen++] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x59
-        payload[plen++] = subFunction;                    // 0x02
-        payload[plen++] = statusMask;                     // Status Mask 에코
-
-        for (int i = 0; i < MAX_DTCS; i++) {
-            if (g_dtcStorage[i].dtc_code != 0 && (g_dtcStorage[i].status & statusMask) != 0) {
-                if (plen + 4 <= sizeof(payload)) {
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 16);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 8);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code & 0xFF);
-                    payload[plen++] = g_dtcStorage[i].status;
-                } else {
-                    break; // 버퍼 부족
+                    // g_TofValue 값 확인 (타임아웃 시 TOF_INVALID_VALUE)
+                    if (tofGetValue() != TOF_INVALID_VALUE) {
+                        payload[2] = (tofGetValue() >> 16) & 0xFF;
+                        payload[3] = (tofGetValue() >> 8) & 0xFF;
+                        payload[4] = tofGetValue() & 0xFF;
+                    } else {
+                        payload[2] = (TOF_INVALID_VALUE >> 16);
+                        payload[3] = (TOF_INVALID_VALUE >> 16);
+                        payload[4] = TOF_INVALID_VALUE & 0xFF;
+                    }
+                    CANTP_SendResponse(payload, sizeof(payload));
+                    break;
                 }
+                case UDS_DID_LEFT_ULTRASONIC_SENSOR:
+                {
+                    break;
+                }
+                // 여기에 다른 센서 케이스들을 추가할 수 있습니다.
             }
-        }
-        CANTP_SendResponse(payload, plen);
 
-    } else {
-        sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED); // 0x12
+            // 다음 전송을 위해 타이머 재설정
+            g_periodicTasks[i].timer = g_periodicTasks[i].intervalMs;
+        }
     }
+}
+
+// 설정값을 초기화하는 함수 (부팅 시 1회 호출)
+void config_init(void)
+{
+    // 나중에는 여기서 DFlash의 값을 읽어와 g_config를 채웁니다.
+
+    // 지금은 우선 기본값으로 초기화합니다.
+    g_config.isAebEnabled = true; // 기본값은 ON
+    strcpy(g_config.partNumber, "RC-CAR-CRTL-V1.0");
+    strcpy(g_config.serialNumber, "20250428-001");
+    strcpy(g_config.vin, "KR01CAR00PS000001");
+    strcpy(g_config.manufacturingDate, "2025-10-22");
+    strcpy(g_config.supplier, "Hyundai Autoever");
+}
+
+// 주기적으로 호출될 관리 함수
+void config_mainFunction(void)
+{
+    // 나중에는 여기에 'g_config에 변경이 생겼으면 DFlash에 저장'하는
+    // 로직을 추가하게 됩니다.
 }

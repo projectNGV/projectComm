@@ -1,5 +1,5 @@
 /**********************************************************************************************************************
- * \file dtchandler.c
+ * \file diagnosticsdata.h
  * \copyright Copyright (C) Infineon Technologies AG 2019
  * 
  * Use of this file is subject to the terms of use agreed between (i) you or the company in which ordinary course of 
@@ -25,20 +25,72 @@
  * IN THE SOFTWARE.
  *********************************************************************************************************************/
 
+#ifndef BSW_SERVICE_DIAGNOSTICS_DIAGNOSTICSDATA_H_
+#define BSW_SERVICE_DIAGNOSTICS_DIAGNOSTICSDATA_H_
 
 /*********************************************************************************************************************/
 /*-----------------------------------------------------Includes------------------------------------------------------*/
 /*********************************************************************************************************************/
-#include "sidhandler.h"
-#include "dtc.h"
+#include "Ifx_Types.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
 /*********************************************************************************************************************/
+#define MAX_PERIODIC_TASKS 5    // 주기적 전송 작업 관리 배열
+
+/*********************************************************************************************************************/
+/*-------------------------------------------------Data Structures---------------------------------------------------*/
+/*********************************************************************************************************************/
+typedef enum {
+   UDS_DID_TOF_SENSOR = 0x1000,
+   UDS_DID_LEFT_ULTRASONIC_SENSOR = 0x2000,
+   UDS_DID_RIGHT_ULTRASONIC_SENSOR = 0x2001,
+   UDS_DID_REAR_ULTRASONIC_SENSOR = 0x2002,
+   UDS_DID_AEB_REMOTE_MASTER_SWITCH = 0X3000,
+
+   // Standard DIDs (F1xx range)
+   UDS_DID_ACTIVE_DIAGNOSTIC_SESSION = 0xF186,
+   UDS_DID_VEHICLE_MANUFACTURER_ECU_PART_NUMBER = 0xF187,
+   UDS_DID_ECU_SERIAL_NUMBER = 0xF18C,
+   UDS_DID_VEHICLE_IDENTIFICATION_NUMBER = 0xF190,
+   UDS_DID_ECU_SUPPLIER_INFORMATION = 0xF192,
+   UDS_DID_ECU_MANUFACTURING_DATE = 0xF193,
+
+   // DID for listing supported DIDs
+   UDS_DID_SUPPORTED_DIDS_LIST = 0xF1A0
+} UDS_DataIdentifier;
+
+typedef struct {
+    uint16_t did;               // 관리할 실제 데이터의 DID (UDS_DID 타입)
+    uint16_t intervalMs;        // 전송 주기
+    uint8_t isActive;           // 활성화 여부
+    volatile uint32_t timer;    // 타이머
+} PeriodicTransmission;
+
+// 시스템의 모든 설정값을 모아둘 구조체
+typedef struct {
+    bool isAebEnabled; // AEB ON/OFF
+    char partNumber[20]; // ECU 하드웨어 부품 번호
+    char serialNumber[20]; // ECU 고유 시리얼 번호
+    char vin[18]; // 차대번호
+    char manufacturingDate[11]; // ECU 제조 날짜
+    char supplier[20]; // ECU 공급업체
+} SystemConfig;
 
 /*********************************************************************************************************************/
 /*-------------------------------------------------Global variables--------------------------------------------------*/
 /*********************************************************************************************************************/
+extern PeriodicTransmission g_periodicTasks[MAX_PERIODIC_TASKS];
+
+// '설정값 변수가 있다'고 외부에 알리는 선언 (extern) 실제는 .c파일에 존재
+extern SystemConfig g_config;
+
+// 지원 DID 목록 배열이 외부에 존재한다고 선언
+extern uint16 SUPPORTED_DIDS[];
+// 지원 DID 개수도 외부에 존재한다고 선언
+extern uint8 NUM_SUPPORTED_DIDS;
 
 /*********************************************************************************************************************/
 /*--------------------------------------------Private Variables/Constants--------------------------------------------*/
@@ -47,62 +99,13 @@
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
+void UDS_HandlePeriodicTransmission(void);
 
-/*********************************************************************************************************************/
-/*---------------------------------------------Function Implementations----------------------------------------------*/
-/*********************************************************************************************************************/
+// 설정값을 초기화하는 함수 선언
+void config_init(void);
+
+// 설정값을 주기적으로 관리하는 함수 선언 (DFlash 저장 등)
+void config_mainFunction(void);
 
 
-/*
-0x14 (ClearDiagnosticInformation),
-0x19 (ReadDTCInformation),
-0x85 (ControlDTCSetting) 등 DTC 관련 SID 핸들러 포함.
-*/
-
-/* ---- 0x19: Read DTC Information Handler ---- */
-void handleSID19(const uint8_t* data, uint16_t length, const uint8_t sid) {
-    // 세션 체크 (Default 이상 허용)
-    if (session_getCurrent() < SESSION_DEFAULT) {
-        sendNegativeResponse(sid, UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION); // 0x7F
-        return;
-    }
-
-    if (length < 2) { // SID + SubFunction
-        sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        return;
-    }
-
-    uint8_t subFunction = data[1];
-
-    if (subFunction == 0x02) { // reportDTCByStatusMask
-        if (length != 3) {
-             sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-             return;
-        }
-        uint8_t statusMask = data[2];
-
-        uint8_t payload[MAX_DTCS * 4 + 3];
-        uint16_t plen = 0;
-
-        payload[plen++] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x59
-        payload[plen++] = subFunction;                    // 0x02
-        payload[plen++] = statusMask;                     // Status Mask 에코
-
-        for (int i = 0; i < MAX_DTCS; i++) {
-            if (g_dtcStorage[i].dtc_code != 0 && (g_dtcStorage[i].status & statusMask) != 0) {
-                if (plen + 4 <= sizeof(payload)) {
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 16);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 8);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code & 0xFF);
-                    payload[plen++] = g_dtcStorage[i].status;
-                } else {
-                    break; // 버퍼 부족
-                }
-            }
-        }
-        CANTP_SendResponse(payload, plen);
-
-    } else {
-        sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED); // 0x12
-    }
-}
+#endif /* BSW_SERVICE_DIAGNOSTICS_DIAGNOSTICSDATA_H_ */

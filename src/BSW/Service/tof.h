@@ -10,6 +10,8 @@
 
 #define TOF_DEFAULT_VALUE_MM   5000
 
+extern unsigned int g_TofValue;
+
 void tofInit (void);
 void tofUpdateFromCAN (unsigned char *rxData);
 unsigned int tofGetValue (void);

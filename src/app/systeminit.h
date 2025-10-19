@@ -12,6 +12,7 @@
 #include "led.h"
 #include "buzzer.h"
 #include "stm.h"
+#include "session.h"
 
 void systemInit(void);
 

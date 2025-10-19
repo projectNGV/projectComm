@@ -1,5 +1,5 @@
 /**********************************************************************************************************************
- * \file dtchandler.c
+ * \file session.c
  * \copyright Copyright (C) Infineon Technologies AG 2019
  * 
  * Use of this file is subject to the terms of use agreed between (i) you or the company in which ordinary course of 
@@ -29,12 +29,14 @@
 /*********************************************************************************************************************/
 /*-----------------------------------------------------Includes------------------------------------------------------*/
 /*********************************************************************************************************************/
-#include "sidhandler.h"
-#include "dtc.h"
+#include "session.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
 /*********************************************************************************************************************/
+// 세션 타임아웃 시간 (5초).
+// session_mainFunction()이 20ms마다 호출되므로, 250번 호출되면 5초가 경과한 것입니다.
+#define S3_SERVER_TIMEOUT_TICKS 250
 
 /*********************************************************************************************************************/
 /*-------------------------------------------------Global variables--------------------------------------------------*/
@@ -43,6 +45,10 @@
 /*********************************************************************************************************************/
 /*--------------------------------------------Private Variables/Constants--------------------------------------------*/
 /*********************************************************************************************************************/
+// 현재 진단 세션 상태를 저장하는 변수
+static DiagnosticSession g_currentSession = SESSION_DEFAULT;
+// 세션 타임아웃을 세기 위한 10ms 단위 카운터
+static uint16 g_sessionTimeoutCounter = 0;
 
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
@@ -51,58 +57,56 @@
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
 /*********************************************************************************************************************/
+// 세션 관리 모듈 초기화
+void session_init(void) {
+    g_currentSession = SESSION_DEFAULT;
+    g_sessionTimeoutCounter = 0; // 카운터를 0으로 초기화
+}
 
 
-/*
-0x14 (ClearDiagnosticInformation),
-0x19 (ReadDTCInformation),
-0x85 (ControlDTCSetting) 등 DTC 관련 SID 핸들러 포함.
-*/
 
-/* ---- 0x19: Read DTC Information Handler ---- */
-void handleSID19(const uint8_t* data, uint16_t length, const uint8_t sid) {
-    // 세션 체크 (Default 이상 허용)
-    if (session_getCurrent() < SESSION_DEFAULT) {
-        sendNegativeResponse(sid, UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION); // 0x7F
+// GPT 타이머 인터럽트에 의해 10ms마다 주기적으로 호출되어야 한다.
+void session_mainFunction(void) {
+    // Default 세션 상태에서는 타임아웃을 검사할 필요가 없습니다.
+    if (g_currentSession == SESSION_DEFAULT) {
         return;
     }
 
-    if (length < 2) { // SID + SubFunction
-        sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        return;
+    // 10ms가 지났으므로 카운터를 1 증가시킵니다.
+    g_sessionTimeoutCounter++;
+
+    // 카운터가 500번 (5초)을 초과했는지 확인합니다.
+    if (g_sessionTimeoutCounter > S3_SERVER_TIMEOUT_TICKS) {
+        // 타임아웃이 발생했으므로, 보안을 위해 Default 세션으로 강제 복귀합니다.
+        myPrintf("[SESSION] Timeout! Reverting to Default Session.\n");
+        g_currentSession = SESSION_DEFAULT;
     }
+}
 
-    uint8_t subFunction = data[1];
+// 세션 타임아웃 카운터를 리셋한다. CAN 핸들러에서 UDS 요청 수신시마다 호출되어야 한다.
+void session_resetTimer(void) {
+    // 통신이 수신되었으므로 카운터를 0으로 리셋합니다.
+    g_sessionTimeoutCounter = 0;
+}
 
-    if (subFunction == 0x02) { // reportDTCByStatusMask
-        if (length != 3) {
-             sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-             return;
+// 현재 세션 상태를 반환한다.
+DiagnosticSession session_getCurrent(void) {
+    return g_currentSession;
+}
+
+
+// 현재 세션 상태를 변경한다.
+void session_setCurrent(DiagnosticSession new_session) {
+    // 세션 상태가 실제로 변경되었을 때만 동작합니다.
+    if (g_currentSession != new_session) {
+        g_currentSession = new_session;
+        session_resetTimer(); // 세션이 변경되면 즉시 타임아웃 카운터를 리셋합니다.
+
+        if (g_currentSession == SESSION_DEFAULT) {
+            myPrintf("DEFAULT SESSION\n");
         }
-        uint8_t statusMask = data[2];
-
-        uint8_t payload[MAX_DTCS * 4 + 3];
-        uint16_t plen = 0;
-
-        payload[plen++] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x59
-        payload[plen++] = subFunction;                    // 0x02
-        payload[plen++] = statusMask;                     // Status Mask 에코
-
-        for (int i = 0; i < MAX_DTCS; i++) {
-            if (g_dtcStorage[i].dtc_code != 0 && (g_dtcStorage[i].status & statusMask) != 0) {
-                if (plen + 4 <= sizeof(payload)) {
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 16);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 8);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code & 0xFF);
-                    payload[plen++] = g_dtcStorage[i].status;
-                } else {
-                    break; // 버퍼 부족
-                }
-            }
+        else if (g_currentSession == SESSION_EXTENDED) {
+            myPrintf("EXTENDED SESSION START TIME COUNT START\n");
         }
-        CANTP_SendResponse(payload, plen);
-
-    } else {
-        sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED); // 0x12
     }
 }

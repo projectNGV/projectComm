@@ -29,11 +29,9 @@
 /*********************************************************************************************************************/
 /*-----------------------------------------------------Includes------------------------------------------------------*/
 /*********************************************************************************************************************/
-#include "uds.h"       // sendNegativeResponse, UDS_POSITIVE_RESPONSE_SID 등 사용
 #include "sidhandler.h"
-#include "cantp.h"     // CANTP_SendResponse 사용
+#include "diagnosticsdata.h"
 #include "tof.h"       // tofGetValue 사용
-#include "uart.h"  // myPrintf 사용 (0x2A 핸들러)
 #include "stm.h"       // STM 관련 매크로 및 레지스터 접근 (0x2A 핸들러)
 
 /*********************************************************************************************************************/
@@ -64,8 +62,14 @@
 0x2A (ReadDataByPeriodicIdentifier) 등 데이터 읽기 관련 SID 핸들러 포함.
 */
 
-/* ---- 0x22: Read Data By Identifier Handler ---- */
+// 0x22: Read Data By Identifier Handler
 void handleSID22(const uint8_t* data, uint16_t length, const uint8_t sid) {
+    // 세션 체크 (Default 이상 허용)
+    if (session_getCurrent() < SESSION_DEFAULT) {
+        sendNegativeResponse(sid, UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION); // 0x7F
+        return;
+    }
+
     if (length != 3) {
         sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         return;
@@ -78,30 +82,155 @@ void handleSID22(const uint8_t* data, uint16_t length, const uint8_t sid) {
         {
             uint32_t currentTofValue = tofGetValue();
             if (currentTofValue != TOF_INVALID_VALUE) {
-                uint8_t responseMsg[6];
-                responseMsg[0] = UDS_POSITIVE_RESPONSE_SID(sid);
-                responseMsg[1] = (did >> 8) & 0xFF;
-                responseMsg[2] = did & 0xFF;
-                responseMsg[3] = (currentTofValue >> 16) & 0xFF;
-                responseMsg[4] = (currentTofValue >> 8) & 0xFF;
-                responseMsg[5] = currentTofValue & 0xFF;
+                uint8_t payload[6];
+                payload[0] = UDS_POSITIVE_RESPONSE_SID(sid);
+                payload[1] = (did >> 8) & 0xFF;
+                payload[2] = did & 0xFF;
+                payload[3] = (currentTofValue >> 16) & 0xFF;
+                payload[4] = (currentTofValue >> 8) & 0xFF;
+                payload[5] = currentTofValue & 0xFF;
 
-                CANTP_SendResponse(responseMsg, sizeof(responseMsg));
+                CANTP_SendResponse(payload, sizeof(payload));
             }
             else {
                 sendNegativeResponse(sid, UDS_NRC_CONDITIONS_NOT_CORRECT);
             }
             break;
         }
-        // 여기에 0x22 서비스로 읽을 다른 DID 케이스 추가
+
+        case UDS_DID_LEFT_ULTRASONIC_SENSOR:
+        {
+
+            break;
+        }
+
+        case UDS_DID_RIGHT_ULTRASONIC_SENSOR:
+        {
+
+            break;
+        }
+
+        case UDS_DID_REAR_ULTRASONIC_SENSOR:
+        {
+//            UltrasonicSensorPosition sensorPos; // ultrasonic.h 에 정의 가정
+//            if (did == UDS_DID_LEFT_ULTRASONIC_SENSOR) sensorPos = ULT_LEFT;
+//            else if (did == UDS_DID_RIGHT_ULTRASONIC_SENSOR) sensorPos = ULT_RIGHT;
+//            else sensorPos = ULT_REAR;
+//
+//            float distance_cm = ultrasonic_getDistanceCm(sensorPos);
+//
+//            if (distance_cm < 0) {
+//                sendNegativeResponse(sid, UDS_NRC_CONDITIONS_NOT_CORRECT); // 0x22
+//            } else {
+//                uint16_t scaled_distance = (uint16_t)(distance_cm * 10.0f);
+//                uint8_t payload[5];
+//                payload[0] = UDS_POSITIVE_RESPONSE_SID(sid);
+//                payload[1] = (did >> 8) & 0xFF;
+//                payload[2] = did & 0xFF;
+//                payload[3] = (uint8_t)(scaled_distance >> 8);
+//                payload[4] = (uint8_t)(scaled_distance & 0xFF);
+//                CANTP_SendResponse(payload, sizeof(payload));
+//            }
+            break;
+        }
+
+        case UDS_DID_ACTIVE_DIAGNOSTIC_SESSION:
+        {
+            uint8_t currentSession = (uint8_t)session_getCurrent();
+            uint8_t payload[4];
+            payload[0] = UDS_POSITIVE_RESPONSE_SID(sid);
+            payload[1] = (did >> 8) & 0xFF;
+            payload[2] = did & 0xFF;
+            payload[3] = currentSession;
+
+            CANTP_SendResponse(payload, sizeof(payload));
+            break;
+        }
+
+        case UDS_DID_VEHICLE_MANUFACTURER_ECU_PART_NUMBER:
+        {
+            const char* strData = NULL;
+            uint8_t payload[50];
+            uint16_t plen = 0;
+
+            payload[plen++] = UDS_POSITIVE_RESPONSE_SID(sid);
+            payload[plen++] = (did >> 8) & 0xFF;
+            payload[plen++] = did & 0xFF;
+
+            if (did == UDS_DID_VEHICLE_MANUFACTURER_ECU_PART_NUMBER) strData = g_config.partNumber;
+            else if (did == UDS_DID_ECU_SERIAL_NUMBER) strData = g_config.serialNumber;
+            else if (did == UDS_DID_VEHICLE_IDENTIFICATION_NUMBER) strData = g_config.vin;
+            else if (did == UDS_DID_ECU_SUPPLIER_INFORMATION) strData = g_config.supplier;
+            else if (did == UDS_DID_ECU_MANUFACTURING_DATE) strData = g_config.manufacturingDate;
+
+            if (strData) {
+                uint16_t dataLen = strlen(strData);
+                if (plen + dataLen < sizeof(payload)) {
+                    memcpy(&payload[plen], strData, dataLen);
+                    plen += dataLen;
+                    CANTP_SendResponse(payload, plen);
+                } else {
+                    sendNegativeResponse(sid, UDS_NRC_GENERAL_REJECT);
+                }
+            } else {
+                sendNegativeResponse(sid, UDS_NRC_REQUEST_OUT_OF_RANGE);
+            }
+            break;
+        }
+
+        case UDS_DID_ECU_SERIAL_NUMBER:
+        {
+
+            break;
+        }
+
+        case UDS_DID_VEHICLE_IDENTIFICATION_NUMBER:
+        {
+
+            break;
+        }
+
+        case UDS_DID_ECU_SUPPLIER_INFORMATION:
+        {
+
+            break;
+        }
+
+        case UDS_DID_ECU_MANUFACTURING_DATE:
+        {
+
+            break;
+        }
+
+        case UDS_DID_SUPPORTED_DIDS_LIST:
+        {
+            uint8_t payload[3 + NUM_SUPPORTED_DIDS * 2];
+            uint16_t plen = 0;
+            payload[plen++] = UDS_POSITIVE_RESPONSE_SID(sid);
+            payload[plen++] = (did >> 8) & 0xFF;
+            payload[plen++] = did & 0xFF;
+            for (int i = 0; i < NUM_SUPPORTED_DIDS; i++) {
+                payload[plen++] = (uint8_t)(SUPPORTED_DIDS[i] >> 8);
+                payload[plen++] = (uint8_t)(SUPPORTED_DIDS[i] & 0xFF);
+            }
+
+            CANTP_SendResponse(payload, plen);
+            break;
+        }
         default:
             sendNegativeResponse(sid, UDS_NRC_REQUEST_OUT_OF_RANGE);
             break;
     }
 }
 
-/* ---- 0x2A: Read Data By Periodic Identifier Handler ---- */
+// 0x2A: Read Data By Periodic Identifier Handler
 void handleSID2A(const uint8_t* data, uint16_t length, const uint8_t sid) {
+    // 세션 체크 (Default 이상 허용)
+    if (session_getCurrent() < SESSION_DEFAULT) {
+        sendNegativeResponse(sid, UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION); // 0x7F
+        return;
+    }
+
     if (length < 4) { // subFunction + DID
         sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         return;
@@ -119,18 +248,18 @@ void handleSID2A(const uint8_t* data, uint16_t length, const uint8_t sid) {
     }
 
     if (task_index != -1) { // 해당 DID를 가진 작업을 찾았다면
-        uint8_t responseMsg[4];
-        responseMsg[0] = UDS_POSITIVE_RESPONSE_SID(sid);
-        responseMsg[1] = subFunction;
-        responseMsg[2] = (requestedDid >> 8) & 0xFF;
-        responseMsg[3] = requestedDid & 0xFF;
+        uint8_t payload[4];
+        payload[0] = UDS_POSITIVE_RESPONSE_SID(sid);
+        payload[1] = subFunction;
+        payload[2] = (requestedDid >> 8) & 0xFF;
+        payload[3] = requestedDid & 0xFF;
 
         switch (subFunction) {
             case 0x01: // startSending
                 g_periodicTasks[task_index].isActive = 1;
                 g_periodicTasks[task_index].timer = g_periodicTasks[task_index].intervalMs;
 
-                CANTP_SendResponse(responseMsg, sizeof(responseMsg));
+                CANTP_SendResponse(payload, sizeof(payload));
                 myPrintf("UDS: Start Periodic DID 0x%04X\n", requestedDid);
 
                 if (MODULE_STM0.ICR.B.CMP1EN == 0) {
@@ -146,7 +275,7 @@ void handleSID2A(const uint8_t* data, uint16_t length, const uint8_t sid) {
             case 0x02: // stopSending
                 g_periodicTasks[task_index].isActive = 0;
 
-                CANTP_SendResponse(responseMsg, sizeof(responseMsg));
+                CANTP_SendResponse(payload, sizeof(payload));
                 myPrintf("UDS: Stop Periodic DID 0x%04X\n", requestedDid);
                 break;
 

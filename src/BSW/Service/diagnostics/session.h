@@ -1,5 +1,5 @@
 /**********************************************************************************************************************
- * \file dtchandler.c
+ * \file session.h
  * \copyright Copyright (C) Infineon Technologies AG 2019
  * 
  * Use of this file is subject to the terms of use agreed between (i) you or the company in which ordinary course of 
@@ -25,20 +25,36 @@
  * IN THE SOFTWARE.
  *********************************************************************************************************************/
 
+#ifndef BSW_SERVICE_DIAGNOSTICS_SESSION_H_
+#define BSW_SERVICE_DIAGNOSTICS_SESSION_H_
 
 /*********************************************************************************************************************/
 /*-----------------------------------------------------Includes------------------------------------------------------*/
 /*********************************************************************************************************************/
-#include "sidhandler.h"
-#include "dtc.h"
+#include "Ifx_Types.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
 /*********************************************************************************************************************/
+// --- 서버 타이밍 파라미터 정의 (단위: ms) ---
+// P2: 서버가 요청을 받고 응답을 보내기까지의 최대 시간
+#define P2_SERVER_MAX_MS    50
+// P2*: 서버가 Response Pending(0x78)을 보낸 후 다음 응답까지의 최대 시간
+#define P2_STAR_SERVER_MAX_MS 5000
 
 /*********************************************************************************************************************/
 /*-------------------------------------------------Global variables--------------------------------------------------*/
 /*********************************************************************************************************************/
+
+/*********************************************************************************************************************/
+/*-------------------------------------------------Data Structures---------------------------------------------------*/
+/*********************************************************************************************************************/
+//세션 종류 정의
+typedef enum {
+    SESSION_DEFAULT = 1, // default session
+    SESSION_PROGRAMMING = 2, // programming session
+    SESSION_EXTENDED = 3 // extended session
+} DiagnosticSession;
 
 /*********************************************************************************************************************/
 /*--------------------------------------------Private Variables/Constants--------------------------------------------*/
@@ -47,62 +63,10 @@
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
+void session_init(void);
+void session_mainFunction(void); // 주기적으로 호출될 타이머 관리 함수
+void session_resetTimer(void);   // 통신 수신 시 타이머 리셋 함수
+DiagnosticSession session_getCurrent(void);
+void session_setCurrent(DiagnosticSession new_session);
 
-/*********************************************************************************************************************/
-/*---------------------------------------------Function Implementations----------------------------------------------*/
-/*********************************************************************************************************************/
-
-
-/*
-0x14 (ClearDiagnosticInformation),
-0x19 (ReadDTCInformation),
-0x85 (ControlDTCSetting) 등 DTC 관련 SID 핸들러 포함.
-*/
-
-/* ---- 0x19: Read DTC Information Handler ---- */
-void handleSID19(const uint8_t* data, uint16_t length, const uint8_t sid) {
-    // 세션 체크 (Default 이상 허용)
-    if (session_getCurrent() < SESSION_DEFAULT) {
-        sendNegativeResponse(sid, UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION); // 0x7F
-        return;
-    }
-
-    if (length < 2) { // SID + SubFunction
-        sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        return;
-    }
-
-    uint8_t subFunction = data[1];
-
-    if (subFunction == 0x02) { // reportDTCByStatusMask
-        if (length != 3) {
-             sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-             return;
-        }
-        uint8_t statusMask = data[2];
-
-        uint8_t payload[MAX_DTCS * 4 + 3];
-        uint16_t plen = 0;
-
-        payload[plen++] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x59
-        payload[plen++] = subFunction;                    // 0x02
-        payload[plen++] = statusMask;                     // Status Mask 에코
-
-        for (int i = 0; i < MAX_DTCS; i++) {
-            if (g_dtcStorage[i].dtc_code != 0 && (g_dtcStorage[i].status & statusMask) != 0) {
-                if (plen + 4 <= sizeof(payload)) {
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 16);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 8);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code & 0xFF);
-                    payload[plen++] = g_dtcStorage[i].status;
-                } else {
-                    break; // 버퍼 부족
-                }
-            }
-        }
-        CANTP_SendResponse(payload, plen);
-
-    } else {
-        sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED); // 0x12
-    }
-}
+#endif /* BSW_SERVICE_DIAGNOSTICS_SESSION_H_ */

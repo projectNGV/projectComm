@@ -1,5 +1,5 @@
 /**********************************************************************************************************************
- * \file dtchandler.c
+ * \file dtc.c
  * \copyright Copyright (C) Infineon Technologies AG 2019
  * 
  * Use of this file is subject to the terms of use agreed between (i) you or the company in which ordinary course of 
@@ -29,7 +29,6 @@
 /*********************************************************************************************************************/
 /*-----------------------------------------------------Includes------------------------------------------------------*/
 /*********************************************************************************************************************/
-#include "sidhandler.h"
 #include "dtc.h"
 
 /*********************************************************************************************************************/
@@ -39,6 +38,16 @@
 /*********************************************************************************************************************/
 /*-------------------------------------------------Global variables--------------------------------------------------*/
 /*********************************************************************************************************************/
+DtcRecord g_dtcStorage[MAX_DTCS] = {
+    { UDS_DTC_TOF_TIMEOUT,    0x00 }, // 초기 상태: 고장 없음
+    { UDS_DTC_TOF_OUTOFRANGE, 0x00 },
+    { UDS_DTC_ULT_LEFT_TIMEOUT, 0x00 },
+    { UDS_DTC_ULT_LEFT_OUTOFRANGE, 0x00 },
+    { UDS_DTC_ULT_RIGHT_TIMEOUT, 0x00 },
+    { UDS_DTC_ULT_RIGHT_OUTOFRANGE, 0x00 },
+    { UDS_DTC_ULT_REAR_TIMEOUT, 0x00 },
+    { UDS_DTC_ULT_REAR_OUTOFRANGE, 0x00 },
+};
 
 /*********************************************************************************************************************/
 /*--------------------------------------------Private Variables/Constants--------------------------------------------*/
@@ -51,58 +60,18 @@
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
 /*********************************************************************************************************************/
-
-
-/*
-0x14 (ClearDiagnosticInformation),
-0x19 (ReadDTCInformation),
-0x85 (ControlDTCSetting) 등 DTC 관련 SID 핸들러 포함.
-*/
-
-/* ---- 0x19: Read DTC Information Handler ---- */
-void handleSID19(const uint8_t* data, uint16_t length, const uint8_t sid) {
-    // 세션 체크 (Default 이상 허용)
-    if (session_getCurrent() < SESSION_DEFAULT) {
-        sendNegativeResponse(sid, UDS_NRC_SERVICE_NOT_SUPPORTED_IN_ACTIVE_SESSION); // 0x7F
-        return;
-    }
-
-    if (length < 2) { // SID + SubFunction
-        sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        return;
-    }
-
-    uint8_t subFunction = data[1];
-
-    if (subFunction == 0x02) { // reportDTCByStatusMask
-        if (length != 3) {
-             sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-             return;
-        }
-        uint8_t statusMask = data[2];
-
-        uint8_t payload[MAX_DTCS * 4 + 3];
-        uint16_t plen = 0;
-
-        payload[plen++] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x59
-        payload[plen++] = subFunction;                    // 0x02
-        payload[plen++] = statusMask;                     // Status Mask 에코
-
-        for (int i = 0; i < MAX_DTCS; i++) {
-            if (g_dtcStorage[i].dtc_code != 0 && (g_dtcStorage[i].status & statusMask) != 0) {
-                if (plen + 4 <= sizeof(payload)) {
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 16);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 8);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code & 0xFF);
-                    payload[plen++] = g_dtcStorage[i].status;
-                } else {
-                    break; // 버퍼 부족
-                }
+void dtc_updateStatus(uint32 dtc_code, bool is_faulty) {
+    for (int i = 0; i < MAX_DTCS; i++) {
+        // 장부(배열)에서 해당 DTC 코드를 찾습니다.
+        if (g_dtcStorage[i].dtc_code == dtc_code) {
+            if (is_faulty) {
+                // 고장이 발생했다면, status의 'testFailed' 비트를 1로 설정합니다.
+                g_dtcStorage[i].status |= DTC_STATUS_TEST_FAILED;
+            } else {
+                // 고장이 아니라면, 'testFailed' 비트를 0으로 되돌립니다.
+                g_dtcStorage[i].status &= ~DTC_STATUS_TEST_FAILED;
             }
+            break; // 해당 DTC를 찾았으므로 루프 종료
         }
-        CANTP_SendResponse(payload, plen);
-
-    } else {
-        sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED); // 0x12
     }
 }
