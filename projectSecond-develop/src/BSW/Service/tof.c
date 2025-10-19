@@ -2,8 +2,10 @@
 #include "dtc.h" // DTC 모듈의 함수(dtc_updateStatus)를 사용하기 위해 헤더를 포함합니다.
 #include "Ifx_Types.h" // bool, uint64 등 표준 타입 사용
 #include "config.h"
+#include "stm.h"
+
 /* --- 전역 변수 --- */
-static unsigned int g_TofValue;
+unsigned int g_TofValue;
 volatile bool tofFlag = false;
 static uint64 g_lastTofMessageTime = 0; // 마지막 CAN 메시지 수신 시간을 기록할 변수
 
@@ -41,6 +43,7 @@ void tofOnOff (void)
 
 void tofUpdateFromCAN (unsigned char *rxData)
 {
+    resetTofTimeoutTimer();
     // 1. CAN 메시지를 수신할 때마다 현재 시간을 기록합니다 (타임아웃 감지용).
     g_lastTofMessageTime = getTime10Ns();
 

@@ -10,10 +10,13 @@
 
 #define TOF_DEFAULT_VALUE_MM   5000
 
+extern unsigned int g_TofValue;
+
 void tofInit (void);
 void tofUpdateFromCAN (unsigned char *rxData);
 unsigned int tofGetValue (void);
 void tofOnOff (void);
+void diagnoseTofSensor(void); // Ensure this is also declared if used outside
 
 
 #endif /* BSW_SERVICE_TOF_H_ */

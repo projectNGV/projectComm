@@ -11,25 +11,31 @@ from udsoncan.client import Client
 from udsoncan.exceptions import *
 from udsoncan import DidCodec, services, Request
 
+from typing import Any, Tuple, Dict, Optional
+
+
 # --- 설정값 ---
 RPI_HOST = '192.168.137.10' # 실제 라즈베리파이 IP
 ECU_LOGICAL_ADDRESS = 0x1000 # ECU 논리 주소 (필요시 수정)
 
 # --- DID 및 Codec 정의 ---
-# ECU가 사용하는 DID와 데이터 형식을 미리 정의합니다.
-DID_DESCRIPTIONS = {
-    0x1000: ("레이저 센서 거리 (mm)", DidCodec('>H')),    # 2바이트 Unsigned Int
+# 각 DID에 대한 설명과 데이터 형식을 정의합니다.
+DID_DESCRIPTIONS: Dict[int, Tuple[str, Optional[DidCodec]]] = {
+    0x1000: ("레이저 센서 거리 (mm)", DidCodec('>L')),
+    
     0x2000: ("초음파(좌) 센서 거리 (x0.1 cm)", DidCodec('>H')),
     0x2001: ("초음파(우) 센서 거리 (x0.1 cm)", DidCodec('>H')),
     0x2002: ("초음파(후) 센서 거리 (x0.1 cm)", DidCodec('>H')),
-    0xAEB0: ("AEB 기능 플래그", DidCodec('B')),         # 1바이트 Unsigned Int (Write용)
+    0xAEB0: ("AEB 기능 플래그", DidCodec('B')),             # 1-byte Unsigned Int (Write)
     0xF186: ("현재 세션 정보", DidCodec('B')),
-    0xF187: ("ECU 부품 번호", DidCodec(str)),        # 가변 길이 문자열
-    0xF18C: ("ECU 시리얼 번호", DidCodec(str)),
-    0xF190: ("차대번호 (VIN)", DidCodec(str)),
-    0xF192: ("ECU 공급업체 정보", DidCodec(str)),
-    0xF193: ("ECU 제조 날짜", DidCodec(str)),
-    0xF1A0: ("지원 DID 목록", DidCodec(bytes)) # 바이너리로 읽어서 직접 파싱
+
+    0xF187: ("ECU 부품 번호", DidCodec('20s')),
+    0xF18C: ("ECU 시리얼 번호", DidCodec('20s')),
+    0xF190: ("차대번호 (VIN)", DidCodec('18s')),
+    0xF192: ("ECU 공급업체 정보", DidCodec('20s')),
+    0xF193: ("ECU 제조 날짜", DidCodec('11s')),
+    
+    0xF1A0: ("지원 DID 목록", DidCodec(bytes))        # Binary data to be parsed manually
 }
 
 # UDSonCAN 클라이언트 설정
@@ -44,6 +50,14 @@ uds_config = {
 task_queue = queue.Queue()
 # 백그라운드 스레드 제어를 위한 이벤트
 stop_event = threading.Event()
+
+def print_hex(prefix: str, data: bytes):
+    """바이트 데이터를 보기 쉬운 16진수 문자열로 콘솔에 출력합니다."""
+    if not isinstance(data, bytes):
+        print(f"{prefix} [ Invalid data type: {type(data)} ]")
+        return
+    hex_str = ' '.join([f'0x{byte:02X}' for byte in data])
+    print(f"{prefix} [ {hex_str} ]")
 
 # --- 통신 처리 백그라운드 스레드 ---
 def communication_thread(doip_client, conn, root_window):
@@ -121,6 +135,7 @@ def _session_change_handler(client, session_type):
     update_result_text(f"[*] {session_name} 세션 요청 전송 중...")
     try:
         response = client.change_session(session_type)
+        print_hex("ECU -> PC (Raw Response)", response.original_payload)
         if response.positive:
             update_result_text(f"[+] {session_name} 세션으로 성공적으로 전환되었습니다.")
         else:
@@ -128,28 +143,7 @@ def _session_change_handler(client, session_type):
     except Exception as e:
         update_result_text(f"[!] 에러: {e}")
 
-def _did_read_handler(client, did):
-    name, _ = DID_DESCRIPTIONS.get(did, (f"Unknown DID 0x{did:04X}", None))
-    update_result_text(f"[*] {name} (DID 0x{did:04X}) 요청 중...")
-    try:
-        response = client.read_data_by_identifier(did)
-        if response.positive:
-            value = response.data[did] # 코덱이 적용된 값
-            
-            # 특수 케이스 처리 (초음파, 지원 DID 목록)
-            if 0x2000 <= did <= 0x2002: # 초음파 센서
-                display_value = f"{value / 10.0:.1f} cm"
-            elif did == 0xF1A0: # 지원 DID 목록
-                did_list_str = parse_supported_dids(value)
-                display_value = f"\n{did_list_str}"
-            else:
-                display_value = value
-            
-            update_result_text(f"[+] {name}:\n{display_value}")
-        else:
-            update_result_text(f"[-] ECU 부정 응답: {response.code_name}")
-    except Exception as e:
-        update_result_text(f"[!] 에러: {e}")
+
 
 def _all_ultrasonic_handler(client):
     update_result_text("[*] 모든 초음파 센서 데이터 요청 중...")
@@ -159,6 +153,7 @@ def _all_ultrasonic_handler(client):
     for did, name in sensors_to_query:
         try:
             response = client.read_data_by_identifier(did)
+            print_hex("ECU -> PC (Raw Response)", response.original_payload)
             if response.positive:
                 distance_cm = response.data[did] / 10.0
                 results.append(f"  - {name}: {distance_cm:.1f} cm")
@@ -176,7 +171,8 @@ def _dtc_read_handler(client):
     update_result_text(f"[*] DTC 정보 요청 전송 중...")
     try:
         # reportDTCByStatusMask (0x02) / statusMask=0xFF (모든 상태)
-        response = client.read_dtc_information(subfunction=0x02, data=b'\xFF')
+        response = client.read_dtc_information(subfunction=0x02, status_mask=0xFF) 
+        print_hex("ECU -> PC (Raw Response)", response.original_payload)
         if response.positive:
             if not response.service_data.dtcs:
                 update_result_text("[+] 고장 코드가 없습니다.")
@@ -188,35 +184,70 @@ def _dtc_read_handler(client):
     except Exception as e:
         update_result_text(f"[!] 에러: {e}")
 
-def _aeb_write_handler(client, is_on):
-    new_data = 0x01 if is_on else 0x00
-    status_text = 'ON' if is_on else 'OFF'
-    update_result_text(f"[*] AEB 기능 {status_text} 요청 전송 중...")
+
+# pc진단기 코드.txt 파일에서 _did_read_handler 함수를 아래 내용으로 통째로 교체하세요.
+# 기존 _did_read_handler 함수를 아래 코드로 잠시 교체해서 테스트해보세요.
+
+# 기존 _did_read_handler 함수를 아래의 '수동 파싱 최종 버전'으로 교체하세요.
+
+def _did_read_handler(client, did):
+    """
+    단일 DID 값을 읽어 GUI에 표시하는 핸들러 함수 (수동 파싱 최종 버전)
+    """
+    description, codec = DID_DESCRIPTIONS.get(did, ("알 수 없는 DID", None))
+    update_result_text(f"[*] DID 0x{did:04X} ({description}) 데이터 요청 중...")
+    
     try:
-        # AEB 플래그를 위한 DID는 0xAEB0로 가정
-        response = client.write_data_by_identifier(did=0xAEB0, data=bytes([new_data]))
+        response = client.read_data_by_identifier(did)
+        print_hex("ECU -> PC (Raw Response)", response.original_payload)
+
         if response.positive:
-            update_result_text(f"[+] AEB 기능이 성공적으로 {status_text} 되었습니다.")
+            display_value = ""
+            
+            # ▼▼▼▼▼▼▼▼▼▼▼▼▼▼ 라이브러리 내부 문제를 우회하는 수동 파싱 로직 ▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+            
+            # 1. 수신된 원본 바이트 페이로드를 가져옵니다.
+            raw_payload = response.original_payload
+            
+            # 2. UDS 응답 [SID(1), DID(2), 데이터(N)] 에서 데이터 부분만 잘라냅니다.
+            #    데이터는 4번째 바이트(인덱스 3)부터 시작합니다.
+            if len(raw_payload) > 3:
+                data_bytes = raw_payload[3:]
+                
+                # 3. DID에 따라 데이터를 올바르게 해석합니다.
+                if did == 0x1000: # 레이저 센서 (4바이트 정수)
+                    # Big-Endian 형식의 4바이트를 부호 없는 정수로 변환합니다.
+                    numeric_value = int.from_bytes(data_bytes, 'big', signed=False)
+                    display_value = f"{numeric_value} mm"
+                
+                elif did in [0x2000, 0x2001, 0x2002]: # 초음파 센서 (2바이트 정수)
+                    numeric_value = int.from_bytes(data_bytes, 'big', signed=False)
+                    distance_cm = numeric_value / 10.0
+                    display_value = f"{distance_cm:.1f} cm"
+                
+                elif did == 0xF1A0: # 지원 DID 목록
+                     display_value = f"\n[파싱된 목록]\n{parse_supported_dids(data_bytes)}"
+                
+                else: # 부품 번호, 시리얼 등 (문자열)
+                    try:
+                        display_value = data_bytes.decode('utf-8')
+                    except UnicodeDecodeError:
+                        display_value = f"Hex: {data_bytes.hex()}"
+            else:
+                display_value = "수신된 데이터가 너무 짧습니다."
+            # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲ 수동 파싱 로직 끝 ▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+            update_result_text(f"[+] {description} (0x{did:04X}):\n  - {display_value}")
+
         else:
-            update_result_text(f"[-] ECU 부정 응답: {response.code_name}")
+            update_result_text(f"[-] DID 0x{did:04X} 읽기 실패: {response.code_name}")
+            
     except Exception as e:
         update_result_text(f"[!] 에러: {e}")
 
-def _routine_start_handler(client, rid):
-    name = "모터 정회전" if rid == 0x0001 else "모터 역회전"
-    update_result_text(f"[*] {name} 테스트 (RID 0x{rid:04X}) 요청 전송 중...")
-    try:
-        # startRoutine (0x01)
-        response = client.routine_control(routine_id=rid, subfunction=0x01)
-        if response.positive:
-            update_result_text(f"[+] {name}이 시작되었습니다.\n(ECU가 5초 간 모터 구동 후 정지합니다)")
-        else:
-            update_result_text(f"[-] 루틴 시작 실패: {response.code_name}")
-    except Exception as e:
-        update_result_text(f"[!] 에러: {e}")
         
 def parse_supported_dids(did_bytes):
-    """지원 DID 목록 바이너리 데이터를 파싱하여 문자열로 반환"""
+    """지원 DID 목록 바이너리를 파싱하여 문자열로 반환"""
     did_list = []
     for i in range(0, len(did_bytes), 2):
         did_chunk = did_bytes[i:i+2]

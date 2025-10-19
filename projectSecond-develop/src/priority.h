@@ -1,6 +1,8 @@
 #ifndef PRIORITY_H_
 #define PRIORITY_H_
 
+#define ISR_PRIORITY_STM1 22
+
 #define ISR_PRIORITY_ATOM   21
 
 #define ISR_PRIORITY_ASCLIN0_RX 15

@@ -1,38 +1,36 @@
 #ifndef BSW_MCAL_CAN_H_
 #define BSW_MCAL_CAN_H_
 
-
 #include "IfxPort.h"
 #include "IfxCan.h"
 #include "IfxCan_Can.h"
 #include "priority.h"
 
-#include "udshandler.h" // SID에 따른 UDS 기능 호출
-
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
 /*********************************************************************************************************************/
-#define CAN_MESSAGE_ID              (uint32)0x777           /* Message ID that will be used in arbitration phase    */
-#define MAXIMUM_CAN_DATA_PAYLOAD    2                       /* Define maximum classical CAN payload in 4-byte words */
+#define CAN_MESSAGE_ID              (uint32)0x777
+#define MAXIMUM_CAN_DATA_PAYLOAD    2
 
-
-#define CAN_TOF_ID 0x200
+#define CAN_TOF_ID                  0x200
+#define UDS_REQUEST_CAN_ID          0x7E0
+#define UDS_RESPONSE_CAN_ID         0x7E8
 
 /*********************************************************************************************************************/
 /*--------------------------------------------------Data Structures--------------------------------------------------*/
 /*********************************************************************************************************************/
 typedef struct
 {
-    IfxCan_Can_Config canConfig;                            /* CAN module configuration structure                   */
-    IfxCan_Can canModule;                                   /* CAN module handle                                    */
-    IfxCan_Can_Node canSrcNode;                             /* CAN source node handle data structure                */
-    IfxCan_Can_Node canDstNode;                             /* CAN destination node handle data structure           */
-    IfxCan_Can_NodeConfig canNodeConfig;                    /* CAN node configuration structure                     */
-    IfxCan_Filter canFilter;                                /* CAN filter configuration structure                   */
-    IfxCan_Message txMsg;                                   /* Transmitted CAN message structure                    */
-    IfxCan_Message rxMsg;                                   /* Received CAN message structure                       */
-    uint8 txData[8];                                        /* Transmitted CAN data array                           */
-    uint8 rxData[8];                                        /* Received CAN data array                              */
+    IfxCan_Can_Config canConfig;        /* CAN module configuration structure */
+    IfxCan_Can canModule;               /* CAN module handle */
+    IfxCan_Can_Node canSrcNode;         /* CAN source node handle data structure */
+    IfxCan_Can_Node canDstNode;         /* CAN destination node handle data structure */
+    IfxCan_Can_NodeConfig canNodeConfig;/* CAN node configuration structure */
+    IfxCan_Filter canFilter;            /* CAN filter configuration structure */
+    IfxCan_Message txMsg;               /* Transmitted CAN message structure */
+    IfxCan_Message rxMsg;               /* Received CAN message structure */
+    uint8 txData[8];                    /* Transmitted CAN data array */
+    uint8 rxData[8];                    /* Received CAN data array */
 } McmcanType;
 
 typedef enum {
@@ -50,14 +48,10 @@ typedef enum {
 /*-----------------------------------------------Function Prototypes-------------------------------------------------*/
 /*********************************************************************************************************************/
 void canRegisterTofCallback(void (*callback)(unsigned char *));
-
 void canInit(CAN_BAUDRATES ls_baudrate, CAN_NODE CAN_Node);
 void canSetFilterRange(uint32 start, uint32 end);
 void canSetFilterMask(uint32 id, uint32 mask);
-
-
 void canSendMsg(unsigned int id, const char *txData, int len);
-int canRecvMsg (unsigned int *id, unsigned char *rxData, int *len);
-void canSend8(uint32 id, const uint8 *d);
+int canRecvMsg(unsigned int *id, unsigned char *rxData, int *len);
 
-#endif
+#endif /* BSW_MCAL_CAN_H_ */
