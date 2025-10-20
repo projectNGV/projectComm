@@ -165,6 +165,11 @@ void canSendMsg (unsigned int id, const unsigned char *txData, int len)
     g_mcmcan.txMsg.messageId = id;
     g_mcmcan.txMsg.dataLengthCode = len;
 
+    /* 데이터 초기화 후 실제 길이만 복사 */
+    for (int i = 0; i < 8; i++) {
+        g_mcmcan.txData[i] = 0x00;
+    }
+
     /* Define the content of the data to be transmitted */
     for (int i = 0; i < 8; i++)
     {
