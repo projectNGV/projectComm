@@ -28,6 +28,10 @@ void handleSID10 (const uint8_t *data, uint16_t length, const uint8_t sid)
                 (uint8) (P2_SERVER_MAX_MS & 0xFF), (uint8) (p2_star_value >> 8), (uint8) (p2_star_value & 0xFF)};
         CANTP_SendResponse(payload, sizeof(payload));
     }
+//    else if(subFunction == SESSION_DEFAULT || subFunction == SESSION_PROGRAMMING)
+//    {
+//        // 재원이꺼
+//    }
     else
     {
         sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED);
@@ -89,6 +93,79 @@ void handleSID22 (const uint8_t *data, uint16_t length, const uint8_t sid)
             // 3. 복사한 길이만큼 전체 응답 길이를 늘려줍니다.
             responseLen += len;
             // 4. CAN-TP를 통해 최종 응답 메시지를 전송합니다.
+            CANTP_SendResponse(responseMsg, responseLen);
+            break;
+        }
+
+        case DID_ECU_SERIAL_NUMBER :
+        {
+            // 1. config.c에 저장된 시리얼 번호 문자열의 길이를 가져옵니다.
+            size_t len = sizeof(g_config.serialNumber);
+            // 2. 응답 메시지 버퍼에 부품 번호 문자열을 복사합니다.
+            memcpy(&responseMsg[responseLen], g_config.serialNumber, len);
+            // 3. 복사한 길이만큼 전체 응답 길이를 늘려줍니다.
+            responseLen += len;
+            // 4. CAN-TP를 통해 최종 응답 메시지를 전송합니다.
+            CANTP_SendResponse(responseMsg, responseLen);
+            break;
+        }
+
+        case DID_VEHICLE_IDENTIFICATION_NUMBER :
+        {
+            // 1. config.c에 저장된 VIN 문자열의 길이를 가져옵니다.
+            size_t len = sizeof(g_config.vin);
+            // 2. 응답 메시지 버퍼에 부품 번호 문자열을 복사합니다.
+            memcpy(&responseMsg[responseLen], g_config.vin, len);
+            // 3. 복사한 길이만큼 전체 응답 길이를 늘려줍니다.
+            responseLen += len;
+            // 4. CAN-TP를 통해 최종 응답 메시지를 전송합니다.
+            CANTP_SendResponse(responseMsg, responseLen);
+            break;
+        }
+
+        case DID_ECU_SUPPLIER_INFORMATION :
+        {
+            // 1. config.c에 저장된 공급업체 문자열의 길이를 가져옵니다.
+            size_t len = sizeof(g_config.supplier);
+            // 2. 응답 메시지 버퍼에 부품 번호 문자열을 복사합니다.
+            memcpy(&responseMsg[responseLen], g_config.supplier, len);
+            // 3. 복사한 길이만큼 전체 응답 길이를 늘려줍니다.
+            responseLen += len;
+            // 4. CAN-TP를 통해 최종 응답 메시지를 전송합니다.
+            CANTP_SendResponse(responseMsg, responseLen);
+            break;
+        }
+
+        case DID_ECU_MANUFACTURING_DATE :
+        {
+            // 1. config.c에 저장된 공급업체 문자열의 길이를 가져옵니다.
+            size_t len = sizeof(g_config.manufacturingDate);
+            // 2. 응답 메시지 버퍼에 부품 번호 문자열을 복사합니다.
+            memcpy(&responseMsg[responseLen], g_config.manufacturingDate, len);
+            // 3. 복사한 길이만큼 전체 응답 길이를 늘려줍니다.
+            responseLen += len;
+            // 4. CAN-TP를 통해 최종 응답 메시지를 전송합니다.
+            CANTP_SendResponse(responseMsg, responseLen);
+            break;
+        }
+
+        case DID_SUPPORTED_DIDS_LIST :
+        {
+            // 1. config.c에 정의된 메뉴판(SUPPORTED_DIDS 배열)을 순회합니다.
+            //    NUM_SUPPORTED_DIDS는 메뉴의 총 개수입니다.
+            for (int i = 0; i < NUM_SUPPORTED_DIDS; i++)
+            {
+                // 2. 각 DID(uint16_t, 2바이트)를 상위/하위 바이트로 분리합니다.
+                // 예: 0xF187 -> 상위 바이트 0xF1, 하위 바이트 0x87
+
+                // 상위 바이트(High-byte)를 담습니다.
+                responseMsg[responseLen++] = (uint8_t) (SUPPORTED_DIDS[i] >> 8);
+
+                // 하위 바이트(Low-byte)를 담습니다.
+                responseMsg[responseLen++] = (uint8_t) (SUPPORTED_DIDS[i] & 0xFF);
+            }
+
+            // 3. 모든 DID가 담긴 최종 응답 메시지를 전송합니다.
             CANTP_SendResponse(responseMsg, responseLen);
             break;
         }

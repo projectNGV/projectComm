@@ -34,8 +34,8 @@ DID_DESCRIPTIONS: Dict[int, Tuple[str, Optional[DidCodec]]] = {
     0xF190: ("차대번호 (VIN)", DidCodec('18s')),
     0xF192: ("ECU 공급업체 정보", DidCodec('20s')),
     0xF193: ("ECU 제조 날짜", DidCodec('11s')),
-    
-    0xF1A0: ("지원 DID 목록", DidCodec(bytes))        # Binary data to be parsed manually
+
+    0xF1A0: ("지원 DID 목록", DidCodec('100s'))        # Binary data to be parsed manually
 }
 
 # UDSonCAN 클라이언트 설정
