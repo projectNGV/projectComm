@@ -60,7 +60,6 @@ void stm1IsrHandler(void) {
     } else {
         // 활성화된 작업이 없으면 인터럽트 비활성화
         MODULE_STM0.ICR.B.CMP1EN = 0U;
-        myPrintf("No active periodic tasks. Disabling STM1 interrupt.\n");
         // 인터럽트 플래그 클리어 (혹시 모를 상황 대비)
         MODULE_STM0.ISCR.B.CMP1IRR = 1U;
     }

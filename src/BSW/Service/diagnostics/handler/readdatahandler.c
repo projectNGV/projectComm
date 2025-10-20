@@ -160,11 +160,8 @@ void handleSID22(const uint8_t* data, uint16_t length, const uint8_t sid) {
 
         case UDS_DID_VEHICLE_MANUFACTURER_ECU_PART_NUMBER:
         {
-            // 1. config.c에 저장된 부품 번호 문자열의 길이를 가져옵니다.
             size_t len = sizeof(g_config.partNumber);
-            // 2. 응답 메시지 버퍼에 부품 번호 문자열을 복사합니다.
             memcpy(&responseMsg[responseLen], g_config.partNumber, len);
-            // 3. 복사한 길이만큼 전체 응답 길이를 늘려줍니다.
             responseLen += len;
             // 4. CAN-TP를 통해 최종 응답 메시지를 전송합니다.
             CANTP_SendResponse(responseMsg, responseLen);

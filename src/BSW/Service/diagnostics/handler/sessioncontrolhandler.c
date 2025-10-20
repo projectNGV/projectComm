@@ -32,6 +32,7 @@
 #include "sidhandler.h"
 #include "session.h"
 
+#include "bcb.h"
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
 /*********************************************************************************************************************/
@@ -72,7 +73,7 @@ void handleSID10(const uint8_t* data, uint16_t length, const uint8_t sid) {
     uint8_t suppressPosRsp = subFunction & 0x80;
     uint8_t sessionType = subFunction & 0x7F;
 
-    if (sessionType == SESSION_DEFAULT || sessionType == SESSION_PROGRAMMING || sessionType == SESSION_EXTENDED) {
+    if (sessionType == SESSION_DEFAULT || sessionType == SESSION_EXTENDED) {
         session_setCurrent((DiagnosticSession)sessionType);
 
         if (!suppressPosRsp) {
@@ -89,7 +90,13 @@ void handleSID10(const uint8_t* data, uint16_t length, const uint8_t sid) {
 
             CANTP_SendResponse(payload, sizeof(payload));
         }
-    } else {
+    }
+    else if (sessionType == SESSION_DEFAULT || sessionType == SESSION_PROGRAMMING)
+    {
+        BCB_RequestUpdate();
+    }
+
+    else {
         sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED); // 0x12
     }
 }

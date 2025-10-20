@@ -33,6 +33,7 @@
 #include "stm.h"
 #include "tof.h"
 #include "cantp.h"
+#include "ultrasonic.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -84,35 +85,48 @@ void UDS_HandlePeriodicTransmission(void) {
     for (int i = 0; i < MAX_PERIODIC_TASKS; i++) {
         // 작업이 활성화 상태이고 타이머가 0이 되었는지 확인
         if (g_periodicTasks[i].isActive && g_periodicTasks[i].timer == 0) {
+            uint8_t payload[7];
+            uint8_t payloadLen = 0;
 
-            // 어떤 센서(DID)를 보낼 차례인지 확인
+            payload[payloadLen++] = (g_periodicTasks[i].did >> 8) & 0xFF;
+            payload[payloadLen++] = g_periodicTasks[i].did & 0xFF;
+
             switch (g_periodicTasks[i].did) {
                 case UDS_DID_TOF_SENSOR:
                 {
-                    uint8_t payload[5];
-                    payload[0] = (g_periodicTasks[i].did >> 8) & 0xFF;
-                    payload[1] = g_periodicTasks[i].did & 0xFF;
-
-                    // g_TofValue 값 확인 (타임아웃 시 TOF_INVALID_VALUE)
-                    if (tofGetValue() != TOF_INVALID_VALUE) {
-                        payload[2] = (tofGetValue() >> 16) & 0xFF;
-                        payload[3] = (tofGetValue() >> 8) & 0xFF;
-                        payload[4] = tofGetValue() & 0xFF;
+                    uint32_t currentTofValue = tofGetValue();
+                    if (currentTofValue != TOF_INVALID_VALUE) {
+                        payload[payloadLen++] = (currentTofValue >> 16) & 0xFF;
+                        payload[payloadLen++] = (currentTofValue >> 8) & 0xFF;
+                        payload[payloadLen++] = currentTofValue & 0xFF;
                     } else {
-                        payload[2] = (TOF_INVALID_VALUE >> 16);
-                        payload[3] = (TOF_INVALID_VALUE >> 16);
-                        payload[4] = TOF_INVALID_VALUE & 0xFF;
+                        payload[payloadLen++] = (TOF_INVALID_VALUE >> 16);
+                        payload[payloadLen++] = (TOF_INVALID_VALUE >> 16);
+                        payload[payloadLen++] = TOF_INVALID_VALUE & 0xFF;
                     }
-                    CANTP_SendResponse(payload, sizeof(payload));
+
+                    CANTP_SendResponse(payload, payloadLen);
                     break;
                 }
                 case UDS_DID_LEFT_ULTRASONIC_SENSOR:
                 {
+                    float distance_cm = ultrasonic_getDistanceCm(ULT_LEFT);
+                    if (distance_cm < 0)
+                    {
+                        payload[payloadLen++] = 0xFF;
+                        payload[payloadLen++] = 0xFF;
+                    }
+                    else
+                    {
+                        uint16_t scaled_distance = (uint16_t)(distance_cm * 10.0f);
+                        payload[payloadLen++] = (uint8_t)(scaled_distance >> 8);
+                        payload[payloadLen++] = (uint8_t)(scaled_distance & 0xFF);
+                    }
+
+                    CANTP_SendResponse(payload, sizeof(payload));
                     break;
                 }
-                // 여기에 다른 센서 케이스들을 추가할 수 있습니다.
             }
-
             // 다음 전송을 위해 타이머 재설정
             g_periodicTasks[i].timer = g_periodicTasks[i].intervalMs;
         }
