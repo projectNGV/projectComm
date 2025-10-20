@@ -51,6 +51,12 @@ void canRxIsrHandler (void)
         case CAN_SOA_CONTROL_ID :
         {
             unsigned char cmdType = rxData[0];
+
+//            myPrintf("\n[CAN RX] ID=0x%x Len=%d\n", rxID, rxLen);
+//            myPrintf("[CAN RX] Data: ");
+//            for (int i = 0; i < rxLen; i++) myPrintf("%02X ", rxData[i]);
+//            myPrintf("\n[CAN RX] Parsed cmdType=0x%02X\n", cmdType);
+
             canSOAHandler(cmdType, rxData + 1, rxLen - 1);
             break;
         }

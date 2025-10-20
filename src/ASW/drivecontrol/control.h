@@ -11,7 +11,7 @@
 
 typedef struct {
     int currentDuty;            // 현재 PWM Duty
-    char currentDir;            // 현재 주행 방향 ('8': 전진, '2': 후진 등)
+    int currentDir;            // 현재 주행 방향 ('8': 전진, '2': 후진 등)
     bool aebActiveFlag;         // AEB 기능 활성화 여부 (TRUE: AEB 작동 중)
     bool autoParkFlag;          // AutoPark 기능 요청 여부
 } MotorState;

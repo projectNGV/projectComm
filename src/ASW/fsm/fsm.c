@@ -62,7 +62,7 @@ void handleStateMachine(MotorState *motorState)
          * ─────────────────────────────── */
         case STATE_IDLE:
             // 1~9 방향 명령이 들어오면 수동 주행 상태로 전환
-            if (motorState->currentDir >= '1' && motorState->currentDir <= '9')
+            if (motorState->currentDir >= 0x01 && motorState->currentDir <= 0x09)
             {
                 currentState = STATE_MANUAL_DRIVE;
             }
@@ -81,7 +81,7 @@ void handleStateMachine(MotorState *motorState)
         case STATE_MANUAL_DRIVE:
             // 전방 장애물 감지 (AEB 발동) && 후진 명령이 아닐 경우 → 긴급 정지 상태로 전환
             if (motorState->aebActiveFlag &&
-                !(motorState->currentDir == '1' || motorState->currentDir == '2' || motorState->currentDir == '3'))
+                !(motorState->currentDir == 0x01 || motorState->currentDir == 0x02 || motorState->currentDir == 0x03))
             {
                 currentState = STATE_EMERGENCY_STOP;
             }
@@ -110,7 +110,7 @@ void handleStateMachine(MotorState *motorState)
             }
 
             // 후진 명령(1,2,3) 또는 AEB 해제 시 복귀
-            if ((motorState->currentDir == '1' || motorState->currentDir == '2' || motorState->currentDir == '3') ||
+            if ((motorState->currentDir == 0x01 || motorState->currentDir == 0x02 || motorState->currentDir == 0x03) ||
                 !motorState->aebActiveFlag)
             {
                 buzzerFlag = TRUE;     // 다음 긴급정지 시 부저 재활성화

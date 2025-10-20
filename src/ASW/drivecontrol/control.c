@@ -72,56 +72,64 @@ void moveBackwardRight(int duty)
  */
 void motorRunCommand(MotorState *state)
 {
-    char dir = state->currentDir;
+    int dir = state->currentDir;
     int duty = state->currentDuty;
+
+    // STOP 또는 duty=0이면 바로 정지
+    if (dir == 0x05 || duty <= 0)
+    {
+        motorStop();
+        ledStopAll();
+        return;
+    }
 
     switch (dir)
     {
-        case '8':  // 전진
+        case 0x08:  // 전진
             ledStopAll();
             moveForward(duty);
             break;
 
-        case '2':  // 후진
+        case 0x02:  // 후진
             ledStopAll();
             moveBackward(duty);
             break;
 
-        case '4':  // 좌회전
+        case 0x04:  // 좌회전
             turnLeftInPlace(duty);
             ledSetRight(0);
             ledStartBlinking(LED_LEFT);
             break;
 
-        case '6':  // 우회전
+        case 0x06:  // 우회전
             turnRightInPlace(duty);
             ledSetLeft(0);
             ledStartBlinking(LED_RIGHT);
             break;
 
-        case '7':  // 전진+좌회전
+        case 0x07:  // 전진+좌회전
             moveForwardLeft(duty);
             ledSetRight(0);
             ledStartBlinking(LED_LEFT);
             break;
 
-        case '9':  // 전진+우회전
+        case 0x09:  // 전진+우회전
             moveForwardRight(duty);
             ledSetLeft(0);
             ledStartBlinking(LED_RIGHT);
             break;
 
-        case '1':  // 후진+좌회전
+        case 0x01:  // 후진+좌회전
             ledStopAll();
             moveBackwardLeft(duty);
             break;
 
-        case '3':  // 후진+우회전
+        case 0x03:  // 후진+우회전
             ledStopAll();
             moveBackwardRight(duty);
             break;
 
-        case '5':  // 정지
+
         default:
             motorStop();
             ledStopAll();

@@ -7,9 +7,9 @@
  * ============================================================ */
 
 static const char *PASSWORD = "1234";      // 인증용 비밀번호
-volatile bool g_isLogin = false;        // 인증 상태 플래그 (TRUE: 로그인됨)
+volatile bool g_isLogin = TRUE;        // 인증 상태 플래그 (TRUE: 로그인됨)
 unsigned char g_authPw[8];                 // 수신된 AUTH 문자열 저장 (최대 7B + NULL)
-
+int duty = 0;
 
 /* ============================================================
  * @brief  CAN 명령 처리기 (SOA 기반)
@@ -24,24 +24,30 @@ void canSOAHandler(unsigned char cmdType, unsigned char *payload, int len)
         /* ──────────────── 0x01: 주행 방향 설정 ──────────────── */
         case CMD_SET_DIR:
             motorState.currentDir = payload[0];
-            myPrintf("[SOA] DIR = %d\n", motorState.currentDir);
+//            myPrintf("[SOA] DIR = %d\n", motorState.currentDir);
+            motorRunCommand(&motorState);
             break;
 
         /* ──────────────── 0x02: 속도(Duty) 설정 ──────────────── */
         case CMD_SET_SPEED:
-            motorState.currentDuty = payload[0] * 10;
-            myPrintf("[SOA] SPEED = %d\n", motorState.currentDuty);
+            duty = payload[0] * 10;
+            if (duty < 0) duty = 0;
+            if (duty > 1000) duty = 1000;   // 필요시 상한 조정
+
+            motorState.currentDuty = duty;
+//            myPrintf("[SOA] SPEED = %d\n", motorState.currentDuty);
+            motorRunCommand(&motorState);
             break;
 
         /* ──────────────── 0x03: AEB 제어 ──────────────── */
         case CMD_CTRL_AEB:
-            myPrintf("[SOA] AEB = %s\n", aebEnableFlag ? "ON" : "OFF");
-            aebEnableFlag = (payload[0] != 0) ? true : false;
+            aebEnableFlag = (payload[0] != 0);
+//            myPrintf("[SOA] AEB = %s\n", aebEnableFlag ? "ON" : "OFF");
             break;
 
         /* ──────────────── 0x04: AutoPark 제어 ──────────────── */
         case CMD_CTRL_AUTOPARK:
-            myPrintf("[SOA] AUTOPARK START\n");
+//            myPrintf("[SOA] AUTOPARK START\n");
             motorState.autoParkFlag = true;
             break;
 
@@ -51,16 +57,17 @@ void canSOAHandler(unsigned char cmdType, unsigned char *payload, int len)
             memset((void*)g_authPw, 0, sizeof(g_authPw));
             memcpy((void*)g_authPw, payload, len);
 
-            myPrintf("[SOA] AUTH PW = %s\n", g_authPw);
+//            myPrintf("[SOA] AUTH PW = %s\n", g_authPw);
             canAuthHandler(payload, len);  // 비밀번호 비교 수행
             break;
 
         /* ──────────────── 0xFE: 긴급 정지 ──────────────── */
         case CMD_EMERGENCY_STOP:
-            myPrintf("[SOA] EMERGENCY STOP!!\n");
-            motorState.currentDir = '5';
+//            myPrintf("[SOA] EMERGENCY STOP!!\n");
+            motorState.currentDir = 0x05;   // 숫자 0x05 (STOP)
             motorState.currentDuty = 0;
-            motorState.aebActiveFlag = true;
+            aebEnableFlag = true;
+            motorRunCommand(&motorState);   // 즉시 정지 반영
             sendAebStateIfChanged();
             break;
 
