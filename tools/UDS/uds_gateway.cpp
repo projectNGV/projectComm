@@ -542,7 +542,11 @@ void isotp_send_flow_control(int sock) {
     fc_frame.can_id = UDS_REQUEST_CAN_ID; // 응답은 요청 ID로 보냄
     fc_frame.can_dlc = 8;
     memset(fc_frame.data, 0, sizeof(fc_frame.data));
-    fc_frame.data[0] = 0x30; // FS: Continue, BS: 0, STmin: 0
+
+    fc_frame.data[0] = 0x30; // [FlowStatus: CTS]
+    fc_frame.data[1] = 0x00; // [BlockSize: 0 (Send All)]
+    fc_frame.data[2] = 0x0A; // [STmin: 10ms]
+
     write(sock, &fc_frame, sizeof(can_frame));
     std::cout << "  -> CAN: Flow Control(CTS) 전송" << std::endl;
 }

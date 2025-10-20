@@ -64,7 +64,7 @@ def communication_thread(doip_client, conn, root_window):
     """
     UDSonCAN 클라이언트를 관리하고, GUI의 요청을 받아 처리하는 스레드
     """
-    with Client(conn, config=uds_config) as client:
+    with Client(conn, config=uds_config, request_timeout=30) as client:
         print("✅ UDS 클라이언트 시작. GUI 요청 대기 중...")
         while not stop_event.is_set():
             try:

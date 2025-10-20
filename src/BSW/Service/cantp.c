@@ -34,6 +34,7 @@
 #include "can.h"
 #include "uart.h"
 #include <string.h>
+#include "util.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -79,6 +80,10 @@
 /*********************************************************************************************************************/
 /*-------------------------------------------------Global variables--------------------------------------------------*/
 /*********************************************************************************************************************/
+
+/*********************************************************************************************************************/
+/*--------------------------------------------Private Variables/Constants--------------------------------------------*/
+/*********************************************************************************************************************/
 // --- 수신(Rx) 상태 관리 변수 ---
 static volatile IsoTpState g_iso_tp_rx_state = ISO_TP_STATE_IDLE;
 static volatile uint16_t g_uds_rx_total_size = 0;
@@ -93,18 +98,26 @@ static volatile uint8_t g_uds_tx_buffer[CANTP_TX_BUFFER_SIZE];
 static volatile uint16_t g_uds_tx_total_size = 0;
 static volatile uint16_t g_uds_tx_sent_size = 0;
 static volatile uint8_t g_tx_seq_num = 0;
+static volatile uint8_t g_tx_block_size = 0;   // FC 프레임에서 받은 Block Size (0이면 모든 프레임 전송)
+static volatile uint16_t g_tx_stmin_ms = 10;     // FC 프레임에서 받은 STmin (ms 단위)
 
-/*********************************************************************************************************************/
-/*--------------------------------------------Private Variables/Constants--------------------------------------------*/
-/*********************************************************************************************************************/
+// ISR -> Main loop 통신을 위한 버퍼 및 플래그
+static volatile uint8_t g_rx_frame_flag = 0;    /* 0: 비어있음, 1: 처리할 프레임 있음 */
+static uint8_t g_rx_frame_data[8];              /* ISR이 복사할 데이터 버퍼 */
+static unsigned int g_rx_frame_id = 0;          /* ISR이 복사할 ID 버퍼 */
 
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
+void handleSingleFrame(const unsigned char* can_data);
+void handleFirstFrame(const unsigned char* can_data);
+void handleConsecutiveFrame(const unsigned char* can_data);
+void handleFlowControl(const unsigned char* can_data);
+
 void sendSingleFrame(const uint8_t* data, uint16_t length);
 void sendFirstFrame(const uint8_t* data, uint16_t length);
+void sendConsecutiveFrame(void);
 void sendFlowControl(uint8_t flowStatus, uint8_t blockSize, uint8_t separationTime);
-
 
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
@@ -187,12 +200,33 @@ void handleConsecutiveFrame(const unsigned char* canData) {
     }
 }
 
-void handleFlowControl(const unsigned char* canData) {
-    if (g_iso_tp_tx_state == ISO_TP_STATE_WAIT_FC){
-        if ((canData[0] & 0x0F) == 0){
+void handleFlowControl (const unsigned char *canData) {
+    if (g_iso_tp_tx_state == ISO_TP_STATE_WAIT_FC) {
+        uint8_t fs = canData[0] & 0x0F; // Flow Status (0=CTS, 1=Wait, 2=Overflow)
+
+        if (fs == 0) { // FS=Continue To Send (CTS)
             g_iso_tp_tx_state = ISO_TP_STATE_SENDING_CF;
 
-            sendConsecutiveFrame();  // CF 중 첫 프레임만 전송
+            g_tx_block_size = canData[1];
+
+            uint8_t stmin = canData[2];
+            if (stmin <= 0x7F) {
+                g_tx_stmin_ms = (uint16_t) stmin;
+            }
+            else if (stmin >= 0xF1 && stmin <= 0xF9) {
+                g_tx_stmin_ms = 1;
+            }
+
+            myPrintf("UDS: FC Received (BS=%d, STmin=%dms)\n", g_tx_block_size, g_tx_stmin_ms);
+
+            sendConsecutiveFrame();
+        }
+        else if (fs == 1) {
+            myPrintf("UDS: FC Received (Wait)...\n");
+        }
+        else {
+            myPrintf("UDS: FC Received (Overflow). Aborting.\n");
+            g_iso_tp_tx_state = ISO_TP_STATE_IDLE;
         }
     }
 }
@@ -200,40 +234,43 @@ void handleFlowControl(const unsigned char* canData) {
 /* ---- Consecutive Frame 전송 함수 ---- */
 void sendConsecutiveFrame(void) {
     if (g_iso_tp_tx_state == ISO_TP_STATE_SENDING_CF) {
-        if (g_uds_tx_sent_size < g_uds_tx_total_size) {
-            // 보낼 데이터가 남아있으면 다음 Consecutive Frame(CF) 전송
+        uint8_t block_count = 0; // 이번 블록에서 보낸 프레임 카운트
+
+        // 모든 데이터가 전송될 때까지 루프
+        while (g_uds_tx_sent_size < g_uds_tx_total_size) {
+            if (g_tx_block_size > 0 && block_count >= g_tx_block_size) {
+                g_iso_tp_tx_state = ISO_TP_STATE_WAIT_FC; // 다음 FC 대기 상태로 전환
+                myPrintf("UDS: Block complete (Sent %d frames). Waiting for next FC.\n", block_count);
+                return; // 전송을 중단하고 다음 FC를 기다립니다.
+            }
+
             uint8_t cfFrame[8] = {0,};
             cfFrame[0] = 0x20 | (g_tx_seq_num & 0x0F);
 
             uint16_t remainingSize = g_uds_tx_total_size - g_uds_tx_sent_size;
             uint8_t bytesToSend = (remainingSize > 7) ? 7 : remainingSize;
 
-            memcpy(&cfFrame[1], &g_uds_tx_buffer[g_uds_tx_sent_size], bytesToSend);
+            memcpy(&cfFrame[1], (void*)&g_uds_tx_buffer[g_uds_tx_sent_size], bytesToSend);
 
-            canSendMsg(UDS_RESPONSE_CAN_ID, cfFrame, bytesToSend + 1);
-
-
-
-            // ****** debug ******
-            myPrintf("SEND consecutive frame\n");
-            myPrintf("UDS Response ID (0x%X) sent.\n", UDS_RESPONSE_CAN_ID);
-//            myPrintf("CanTP Tx: ");
-//            for (int i = 0; i < 8; i++)
-//            {
-//                myPrintf("0x%02X ", cfFrame[i]);
-//            }
-            myPrintf("\n\n");
-
+            canSendMsg(UDS_RESPONSE_CAN_ID, (const char*)cfFrame, bytesToSend + 1);
 
             g_uds_tx_sent_size += bytesToSend;
             g_tx_seq_num = (g_tx_seq_num + 1) % 16;
-        } else {
-            // 모든 데이터 전송 완료
-            g_iso_tp_tx_state = ISO_TP_STATE_IDLE;
+            block_count++; // 이번 블록에서 보낸 프레임 수 증가
 
-            // ****** debug ******
-            myPrintf("---------send all consecutive frame--------\n\n");
+            // 보낼 데이터가 더 남아있다면, STmin 만큼 대기
+            if (g_uds_tx_sent_size < g_uds_tx_total_size) {
+                if (g_tx_stmin_ms > 0) {
+                    delayMs(g_tx_stmin_ms);
+                }
+            }
         }
+
+        // 모든 데이터 전송 완료
+        g_iso_tp_tx_state = ISO_TP_STATE_IDLE;
+
+        // ****** debug ******
+        myPrintf("---------send all consecutive frame--------\n\n");
     }
 }
 
@@ -258,7 +295,7 @@ void sendSingleFrame(const uint8_t* data, uint16_t length) {
 
 /* ---- First Frame 전송 함수 ---- */
 void sendFirstFrame(const uint8_t* data, uint16_t length) {
-    memset((void*)g_uds_rx_buffer, 0, CANTP_TX_BUFFER_SIZE);
+    memset((void*)g_uds_tx_buffer, 0, CANTP_TX_BUFFER_SIZE);
 
     memcpy((void*)g_uds_tx_buffer, data, length);
     g_uds_tx_total_size = length;
@@ -270,8 +307,8 @@ void sendFirstFrame(const uint8_t* data, uint16_t length) {
     ffFrame[1] = length & 0xFF;
     memcpy(&ffFrame[2], data, 6);
 
-    g_iso_tp_tx_state = ISO_TP_STATE_WAIT_FC;
     canSendMsg(UDS_RESPONSE_CAN_ID, ffFrame, 8); // 첫 프레임 전송 "시작"
+    g_iso_tp_tx_state = ISO_TP_STATE_WAIT_FC;
 
     // ****** debug ******
     myPrintf("SEND first frame\n");
@@ -302,3 +339,47 @@ void sendFlowControl(uint8_t flowStatus, uint8_t blockSize, uint8_t separationTi
     myPrintf("\n---------send flow control--------\n\n");
 }
 
+
+
+
+
+
+/* 🚨 추가: CAN 수신 ISR에서 호출될 함수 (빠른 처리) */
+void CANTP_HandleRxISR(const unsigned char* canData, unsigned int canId) {
+    if (g_rx_frame_flag == 0) {
+        memcpy(g_rx_frame_data, canData, 8);
+        g_rx_frame_id = canId;
+        g_rx_frame_flag = 1; // 메인 루프가 처리하도록 플래그 설정
+    }
+    // else: Flag is 1, main loop is busy. Dropping frame.
+}
+
+void CANTP_MainFunction(void) {
+    if (g_rx_frame_flag == 1) {
+        uint8_t local_data[8];
+        unsigned int local_id;
+
+        memcpy(local_data, g_rx_frame_data, 8);
+        local_id = g_rx_frame_id;
+        g_rx_frame_flag = 0; // 플래그 즉시 초기화
+
+        if (local_id == UDS_REQUEST_CAN_ID) {
+            uint8_t pci_type = (local_data[0] & 0xF0) >> 4;
+
+            switch (pci_type) {
+                case 0: // Single Frame (SF)
+                    handleSingleFrame(local_data);
+                    break;
+                case 1: // First Frame (FF)
+                    handleFirstFrame(local_data);
+                    break;
+                case 2: // Consecutive Frame (CF)
+                    handleConsecutiveFrame(local_data);
+                    break;
+                case 3: // flow control Frame (FC)
+                    handleFlowControl(local_data);
+                    break;
+            }
+        }
+    }
+}

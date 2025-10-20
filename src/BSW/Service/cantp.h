@@ -62,12 +62,10 @@
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
-void handleSingleFrame(const unsigned char* can_data);
-void handleFirstFrame(const unsigned char* can_data);
-void handleConsecutiveFrame(const unsigned char* can_data);
-void handleFlowControl(const unsigned char* can_data);
+void CANTP_HandleRxISR(const unsigned char* canData, unsigned int canId);
+void CANTP_MainFunction(void);
 
-void sendConsecutiveFrame(void);
 void CANTP_SendResponse(const uint8_t* data, uint16_t length);
+
 
 #endif /* BSW_SERVICE_CANTP_H_ */
