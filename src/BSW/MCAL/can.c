@@ -36,9 +36,9 @@ void canRxIsrHandler (void)
     int rxLen;
     canRecvMsg(&rxID, rxData, &rxLen);
 
-    myPrintf("rxID: 0x%x\n", rxID);
-    myPrintf("cmdType: 0x%x\n", rxData[0]);
-    myPrintf("cmdData: %x\n", rxData[1]);
+//    myPrintf("rxID: 0x%x\n", rxID);
+//    myPrintf("cmdType: 0x%x\n", rxData[0]);
+//    myPrintf("cmdData: %x\n", rxData[1]);
 
     switch (rxID)
     {

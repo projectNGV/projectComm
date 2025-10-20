@@ -27,11 +27,11 @@
 #define CAN_UDS_FUNC_ID             0x7DF    // UDS Functional Request (Broadcast)
 
 /* 서비스 지향 제어 (SOA: Service-Oriented Architecture) */
-#define CAN_SOA_CONTROL_ID          0x200    // SOME/IP 기반 제어 명령 (Drive, AEB, Auth 등)
-#define CAN_SOA_STATUS_ID           0x210    // SOME/IP 기반 상태 publish
+#define CAN_SOA_CONTROL_ID          0x300    // SOME/IP 기반 제어 명령 (Drive, AEB, Auth 등)
+#define CAN_SOA_STATUS_ID           0x310    // SOME/IP 기반 상태 publish
 
 /* 센서 피드백 */
-#define CAN_TOF_ID                  0x300    // ToF 거리 데이터 전송
+#define CAN_TOF_ID                  0x200    // ToF 거리 데이터 전송
 
 
 /*********************************************************************************************************************/
