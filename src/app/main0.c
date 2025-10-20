@@ -16,6 +16,7 @@ void main0 (void)
     // 사용자 인증 절차 실행(암호 기반 시동)
     //authenticate();
 
+    delayMs(1000);
     while (1)
     {
         // 현재 상태에 따라 차량의 동작을 제어하는 상태 머신 처리
