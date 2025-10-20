@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import scrolledtext, font as tkFont
+from tkinter import scrolledtext, font as tkFont, filedialog
 import threading
 import time
 import queue
@@ -14,19 +14,22 @@ from udsoncan import DidCodec, services, Request
 from typing import Any, Tuple, Dict, Optional
 
 
+from .ota.ota_main import run_ota_process
+
+
 # --- 설정값 ---
-RPI_HOST = '192.168.2.15' # 실제 라즈베리파이 IP
+RPI_HOST = '192.168.137.10' # 실제 라즈베리파이 IP
 ECU_LOGICAL_ADDRESS = 0x1000 # ECU 논리 주소 (필요시 수정)
 
 # --- DID 및 Codec 정의 ---
 # 각 DID에 대한 설명과 데이터 형식을 정의합니다.
 DID_DESCRIPTIONS: Dict[int, Tuple[str, Optional[DidCodec]]] = {
-    0x1000: ("레이저 센서 거리 (mm)", DidCodec('3s')),
+    0x1000: ("레이저 센서 거리 (mm)", DidCodec('>L')),
     
     0x2000: ("초음파(좌) 센서 거리 (x0.1 cm)", DidCodec('>H')),
     0x2001: ("초음파(우) 센서 거리 (x0.1 cm)", DidCodec('>H')),
     0x2002: ("초음파(후) 센서 거리 (x0.1 cm)", DidCodec('>H')),
-    0x3000: ("AEB 기능 플래그", DidCodec('B')),             # 1-byte Unsigned Int (Write)
+    0xAEB0: ("AEB 기능 플래그", DidCodec('B')),             # 1-byte Unsigned Int (Write)
     0xF186: ("현재 세션 정보", DidCodec('B')),
 
     0xF187: ("ECU 부품 번호", DidCodec('20s')),
@@ -40,8 +43,8 @@ DID_DESCRIPTIONS: Dict[int, Tuple[str, Optional[DidCodec]]] = {
 
 # UDSonCAN 클라이언트 설정
 uds_config = {
-    'data_identifiers': {did: codec for did, (_, codec) in DID_DESCRIPTIONS.items()},
-    'p2_timeout': 10,
+    'data_identifiers': {did: codec for did, (_, codec) in DID_DESCRIPTIONS.items() if codec is not None},
+    'p2_timeout': 5,
     'p2_star_timeout': 5,
 }
 
@@ -64,7 +67,7 @@ def communication_thread(doip_client, conn, root_window):
     """
     UDSonCAN 클라이언트를 관리하고, GUI의 요청을 받아 처리하는 스레드
     """
-    with Client(conn, config=uds_config, request_timeout=30) as client:
+    with Client(conn, config=uds_config) as client:
         print("✅ UDS 클라이언트 시작. GUI 요청 대기 중...")
         while not stop_event.is_set():
             try:
@@ -128,6 +131,23 @@ def request_routine_start(rid):
         'args': [rid]
     })
 
+
+# ✨ OTA 파일 선택 및 요청 함수 추가
+def select_ota_file():
+    filepath = filedialog.askopenfilename(
+        title="OTA 펌웨어 파일 선택",
+        filetypes=[("Hex files", "*.hex")]
+    )
+    if filepath:
+        update_result_text(f"[*] OTA 파일 선택됨: {filepath}")
+        request_ota(filepath)
+
+def request_ota(filepath: str):
+    task_queue.put({
+        'function': run_ota_process,
+        'args': [filepath]
+    })
+
 # --- 실제 통신을 수행하는 핸들러 함수들 (통신 스레드에서 실행됨) ---
 
 def _session_change_handler(client, session_type):
@@ -167,6 +187,8 @@ def _all_ultrasonic_handler(client):
     final_text = ("[+] 모든 초음파 센서 값:\n" if not has_error else "[!] 일부 센서에서 오류가 발생했습니다:\n") + "\n".join(results)
     update_result_text(final_text)
 
+# pc진단기 코드.txt의 _dtc_read_handler 함수를 아래와 같이 수정하세요.
+
 def _dtc_read_handler(client):
     update_result_text(f"[*] DTC 정보 요청 전송 중...")
     try:
@@ -177,7 +199,11 @@ def _dtc_read_handler(client):
             if not response.service_data.dtcs:
                 update_result_text("[+] 고장 코드가 없습니다.")
             else:
-                dtc_list = [f"  - ID: 0x{dtc.id:06X}, 상태: 0x{dtc.status.mask:02X}" for dtc in response.service_data.dtcs]
+                # ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼ 이 부분을 수정합니다 ▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+                # dtc.status 객체에서 .mask 속성 접근을 제거합니다.
+                dtc_list = [f"  - ID: 0x{dtc.id:06X}, 상태: 0x{dtc.status:02X}" for dtc in response.service_data.dtcs]
+                # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
                 update_result_text("[+] 감지된 고장 코드:\n" + "\n".join(dtc_list))
         else:
             update_result_text(f"[-] ECU 부정 응답: {response.code_name}")
@@ -215,8 +241,8 @@ def _did_read_handler(client, did):
                 data_bytes = raw_payload[3:]
                 
                 # 3. DID에 따라 데이터를 올바르게 해석합니다.
-                if did == 0x1000: # 레이저 센서 (4바이트 정수)
-                    # Big-Endian 형식의 4바이트를 부호 없는 정수로 변환합니다.
+                if did == 0x1000: # 레이저 센서 (3바이트 정수)
+                    # Big-Endian 형식의 3바이트를 부호 없는 정수로 변환합니다.
                     numeric_value = int.from_bytes(data_bytes, 'big', signed=False)
                     display_value = f"{numeric_value} mm"
                 
@@ -322,6 +348,18 @@ session_extended_button = tk.Button(control_frame, text="세션 시작 (Ext)", c
 session_extended_button.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
 session_default_button = tk.Button(control_frame, text="세션 종료 (Def)", command=lambda: request_session_change(0x01))
 session_default_button.grid(row=1, column=2, columnspan=2, padx=5, pady=5, sticky="ew")
+
+
+
+
+# --- ✨ 4. OTA 그룹 추가 ---
+ota_frame = tk.LabelFrame(window, text=" OTA 업데이트 ", padx=10, pady=5, bg="#f0f0f0")
+ota_frame.pack(pady=5, padx=10, fill="x")
+
+ota_button = tk.Button(ota_frame, text="펌웨어 파일 선택 (OTA)", command=select_ota_file)
+ota_button.pack(fill="x", padx=5, pady=5)
+
+
 
 for i in range(4): control_frame.grid_columnconfigure(i, weight=1)
 
