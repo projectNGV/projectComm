@@ -32,7 +32,8 @@
 #include "sidhandler.h"
 #include "diagnosticsdata.h"
 #include "tof.h"       // tofGetValue 사용
-#include "stm.h"       // STM 관련 매크로 및 레지스터 접근 (0x2A 핸들러)
+#include "stm.h"
+#include "ultrasonic.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -76,21 +77,24 @@ void handleSID22(const uint8_t* data, uint16_t length, const uint8_t sid) {
     }
 
     uint16_t did = (data[1] << 8) | data[2];
+    uint8_t responseMsg[256]; // Sufficient buffer
+    uint16_t responseLen = 0;
+
+    responseMsg[responseLen++] = UDS_POSITIVE_RESPONSE_SID(sid);
+    responseMsg[responseLen++] = (did >> 8) & 0xFF;
+    responseMsg[responseLen++] = did & 0xFF;
 
     switch (did) {
         case UDS_DID_TOF_SENSOR:
         {
             uint32_t currentTofValue = tofGetValue();
             if (currentTofValue != TOF_INVALID_VALUE) {
-                uint8_t payload[6];
-                payload[0] = UDS_POSITIVE_RESPONSE_SID(sid);
-                payload[1] = (did >> 8) & 0xFF;
-                payload[2] = did & 0xFF;
-                payload[3] = (currentTofValue >> 16) & 0xFF;
-                payload[4] = (currentTofValue >> 8) & 0xFF;
-                payload[5] = currentTofValue & 0xFF;
 
-                CANTP_SendResponse(payload, sizeof(payload));
+                responseMsg[responseLen++] = (currentTofValue >> 16) & 0xFF;
+                responseMsg[responseLen++] = (currentTofValue >> 8) & 0xFF;
+                responseMsg[responseLen++] = currentTofValue & 0xFF;
+
+                CANTP_SendResponse(responseMsg, responseLen);
             }
             else {
                 sendNegativeResponse(sid, UDS_NRC_CONDITIONS_NOT_CORRECT);
@@ -100,121 +104,122 @@ void handleSID22(const uint8_t* data, uint16_t length, const uint8_t sid) {
 
         case UDS_DID_LEFT_ULTRASONIC_SENSOR:
         {
+            float distance_cm = ultrasonic_getDistanceCm(ULT_LEFT);
+            if (distance_cm < 0)
+            {
+                sendNegativeResponse(sid, UDS_NRC_CONDITIONS_NOT_CORRECT);
+                return;
+            }
+            uint16_t scaled_distance = (uint16_t) (distance_cm * 10.0f);
+            responseMsg[responseLen++] = (scaled_distance >> 8) & 0xFF;
+            responseMsg[responseLen++] = scaled_distance & 0xFF;
 
+            CANTP_SendResponse(responseMsg, responseLen);
             break;
         }
 
         case UDS_DID_RIGHT_ULTRASONIC_SENSOR:
         {
+            float distance_cm = ultrasonic_getDistanceCm(ULT_RIGHT);
+            if (distance_cm < 0)
+            {
+                sendNegativeResponse(sid, UDS_NRC_CONDITIONS_NOT_CORRECT);
+                return;
+            }
+            uint16_t scaled_distance = (uint16_t) (distance_cm * 10.0f);
+            responseMsg[responseLen++] = (scaled_distance >> 8) & 0xFF;
+            responseMsg[responseLen++] = scaled_distance & 0xFF;
 
+            CANTP_SendResponse(responseMsg, responseLen);
             break;
         }
 
         case UDS_DID_REAR_ULTRASONIC_SENSOR:
         {
-//            UltrasonicSensorPosition sensorPos; // ultrasonic.h 에 정의 가정
-//            if (did == UDS_DID_LEFT_ULTRASONIC_SENSOR) sensorPos = ULT_LEFT;
-//            else if (did == UDS_DID_RIGHT_ULTRASONIC_SENSOR) sensorPos = ULT_RIGHT;
-//            else sensorPos = ULT_REAR;
-//
-//            float distance_cm = ultrasonic_getDistanceCm(sensorPos);
-//
-//            if (distance_cm < 0) {
-//                sendNegativeResponse(sid, UDS_NRC_CONDITIONS_NOT_CORRECT); // 0x22
-//            } else {
-//                uint16_t scaled_distance = (uint16_t)(distance_cm * 10.0f);
-//                uint8_t payload[5];
-//                payload[0] = UDS_POSITIVE_RESPONSE_SID(sid);
-//                payload[1] = (did >> 8) & 0xFF;
-//                payload[2] = did & 0xFF;
-//                payload[3] = (uint8_t)(scaled_distance >> 8);
-//                payload[4] = (uint8_t)(scaled_distance & 0xFF);
-//                CANTP_SendResponse(payload, sizeof(payload));
-//            }
+            float distance_cm = ultrasonic_getDistanceCm(ULT_REAR);
+            if (distance_cm < 0)
+            {
+                sendNegativeResponse(sid, UDS_NRC_CONDITIONS_NOT_CORRECT);
+                return;
+            }
+            uint16_t scaled_distance = (uint16_t) (distance_cm * 10.0f);
+            responseMsg[responseLen++] = (scaled_distance >> 8) & 0xFF;
+            responseMsg[responseLen++] = scaled_distance & 0xFF;
+
+            CANTP_SendResponse(responseMsg, responseLen);
             break;
         }
 
         case UDS_DID_ACTIVE_DIAGNOSTIC_SESSION:
         {
-            uint8_t currentSession = (uint8_t)session_getCurrent();
-            uint8_t payload[4];
-            payload[0] = UDS_POSITIVE_RESPONSE_SID(sid);
-            payload[1] = (did >> 8) & 0xFF;
-            payload[2] = did & 0xFF;
-            payload[3] = currentSession;
+            responseMsg[responseLen++] = (uint8_t) session_getCurrent();
 
-            CANTP_SendResponse(payload, sizeof(payload));
+            CANTP_SendResponse(responseMsg, responseLen);
             break;
         }
 
         case UDS_DID_VEHICLE_MANUFACTURER_ECU_PART_NUMBER:
         {
-            const char* strData = NULL;
-            uint8_t payload[50];
-            uint16_t plen = 0;
-
-            payload[plen++] = UDS_POSITIVE_RESPONSE_SID(sid);
-            payload[plen++] = (did >> 8) & 0xFF;
-            payload[plen++] = did & 0xFF;
-
-            if (did == UDS_DID_VEHICLE_MANUFACTURER_ECU_PART_NUMBER) strData = g_config.partNumber;
-            else if (did == UDS_DID_ECU_SERIAL_NUMBER) strData = g_config.serialNumber;
-            else if (did == UDS_DID_VEHICLE_IDENTIFICATION_NUMBER) strData = g_config.vin;
-            else if (did == UDS_DID_ECU_SUPPLIER_INFORMATION) strData = g_config.supplier;
-            else if (did == UDS_DID_ECU_MANUFACTURING_DATE) strData = g_config.manufacturingDate;
-
-            if (strData) {
-                uint16_t dataLen = strlen(strData);
-                if (plen + dataLen < sizeof(payload)) {
-                    memcpy(&payload[plen], strData, dataLen);
-                    plen += dataLen;
-                    CANTP_SendResponse(payload, plen);
-                } else {
-                    sendNegativeResponse(sid, UDS_NRC_GENERAL_REJECT);
-                }
-            } else {
-                sendNegativeResponse(sid, UDS_NRC_REQUEST_OUT_OF_RANGE);
-            }
+            // 1. config.c에 저장된 부품 번호 문자열의 길이를 가져옵니다.
+            size_t len = sizeof(g_config.partNumber);
+            // 2. 응답 메시지 버퍼에 부품 번호 문자열을 복사합니다.
+            memcpy(&responseMsg[responseLen], g_config.partNumber, len);
+            // 3. 복사한 길이만큼 전체 응답 길이를 늘려줍니다.
+            responseLen += len;
+            // 4. CAN-TP를 통해 최종 응답 메시지를 전송합니다.
+            CANTP_SendResponse(responseMsg, responseLen);
             break;
         }
 
         case UDS_DID_ECU_SERIAL_NUMBER:
         {
+            size_t len = sizeof(g_config.serialNumber);
+            memcpy(&responseMsg[responseLen], g_config.serialNumber, len);
+            responseLen += len;
 
+            CANTP_SendResponse(responseMsg, responseLen);
             break;
         }
 
         case UDS_DID_VEHICLE_IDENTIFICATION_NUMBER:
         {
+            size_t len = sizeof(g_config.vin);
+            memcpy(&responseMsg[responseLen], g_config.vin, len);
+            responseLen += len;
 
+            CANTP_SendResponse(responseMsg, responseLen);
             break;
         }
 
         case UDS_DID_ECU_SUPPLIER_INFORMATION:
         {
+            size_t len = sizeof(g_config.supplier);
+            memcpy(&responseMsg[responseLen], g_config.supplier, len);
+            responseLen += len;
 
+            CANTP_SendResponse(responseMsg, responseLen);
             break;
         }
 
         case UDS_DID_ECU_MANUFACTURING_DATE:
         {
+            size_t len = sizeof(g_config.manufacturingDate);
+            memcpy(&responseMsg[responseLen], g_config.manufacturingDate, len);
+            responseLen += len;
 
+            CANTP_SendResponse(responseMsg, responseLen);
             break;
         }
 
         case UDS_DID_SUPPORTED_DIDS_LIST:
         {
-            uint8_t payload[3 + NUM_SUPPORTED_DIDS * 2];
-            uint16_t plen = 0;
-            payload[plen++] = UDS_POSITIVE_RESPONSE_SID(sid);
-            payload[plen++] = (did >> 8) & 0xFF;
-            payload[plen++] = did & 0xFF;
             for (int i = 0; i < NUM_SUPPORTED_DIDS; i++) {
-                payload[plen++] = (uint8_t)(SUPPORTED_DIDS[i] >> 8);
-                payload[plen++] = (uint8_t)(SUPPORTED_DIDS[i] & 0xFF);
+                responseMsg[responseLen++] = (uint8_t)(SUPPORTED_DIDS[i] >> 8);
+                responseMsg[responseLen++] = (uint8_t)(SUPPORTED_DIDS[i] & 0xFF);
             }
 
-            CANTP_SendResponse(payload, plen);
+            //responseLen = ((responseLen + 3) / 4) * 4;
+            CANTP_SendResponse(responseMsg, responseLen);
             break;
         }
         default:

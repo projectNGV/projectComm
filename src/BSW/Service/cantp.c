@@ -209,6 +209,7 @@ void sendConsecutiveFrame(void) {
             uint8_t bytesToSend = (remainingSize > 7) ? 7 : remainingSize;
 
             memcpy(&cfFrame[1], &g_uds_tx_buffer[g_uds_tx_sent_size], bytesToSend);
+
             canSendMsg(UDS_RESPONSE_CAN_ID, cfFrame, bytesToSend + 1);
 
 
@@ -248,10 +249,10 @@ void sendSingleFrame(const uint8_t* data, uint16_t length) {
 
     // ****** debug ******
     myPrintf("SEND single frame\n");
-    myPrintf("CanTP Tx: ");
-    for (int i = 0; i < 8; i++) {
-        myPrintf("0x%02X ", sfFrame[i]);
-    }
+//    myPrintf("CanTP Tx: ");
+//    for (int i = 0; i < 8; i++) {
+//        myPrintf("0x%02X ", sfFrame[i]);
+//    }
     myPrintf("\n---------send single frame--------\n\n");
 }
 

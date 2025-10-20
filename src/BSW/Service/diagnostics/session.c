@@ -108,5 +108,10 @@ void session_setCurrent(DiagnosticSession new_session) {
         else if (g_currentSession == SESSION_EXTENDED) {
             myPrintf("EXTENDED SESSION START TIME COUNT START\n");
         }
+        else if (g_currentSession == SESSION_PROGRAMMING)
+        {
+            // 재원이꺼
+
+        }
     }
 }

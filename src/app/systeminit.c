@@ -13,4 +13,5 @@ void systemInit(void) {
     buzzerInit();
     stmInit();
     session_init();
+    config_init();
 }
