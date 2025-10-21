@@ -1,3 +1,6 @@
 [submodule "project_synapse"]
 	path = project_synapse
 	url = https://github.com/Jun-hyeok-Park/project_synapse.git
+[submodule "fota_tc375LK"]
+	path = fota_tc375LK
+	url = git@github.com:iamjaeone/fota_tc375LK.git
