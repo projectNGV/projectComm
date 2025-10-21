@@ -8,7 +8,7 @@ from udsoncan.client import Client
 from udsoncan import Request, services, DidCodec
 
 # --- 설정값 ---
-ECU_IP = '192.168.2.15'
+ECU_IP = '192.168.137.10'
 ECU_LOGICAL_ADDRESS = 0x1000
 TOF_SENSOR_DID = 0x1000
 TOF_INVALID_VALUE = 0xFFFFFF # ECU의 에러 값과 동일하게 정의
