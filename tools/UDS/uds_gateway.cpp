@@ -96,7 +96,7 @@ int main() {
             std::cerr << "클라이언트 연결 수락 실패." << std::endl;
             continue;
         }
-        
+
         std::cout << "\n진단기 클라이언트 연결됨. 세션 시작." << std::endl;
         handle_doip_session(client_sock); // 연결된 클라이언트 처리
         close(client_sock);
@@ -134,15 +134,15 @@ void can_to_doip_forwarder(int can_sock, int client_sock, std::atomic<bool>& ses
         std::vector<uint8_t> uds_response;
 
         switch (pci_type) {
-            case 0: // Single Frame
-                uds_response = isotp_handle_single_frame(rx_frame);
-                break;
-            case 1: // First Frame
-                uds_response = isotp_handle_multi_frame(can_sock, rx_frame);
-                break;
-            default:
-                std::cerr << "잘못된 시작 프레임 수신 (Type: " << (int)pci_type << ")" << std::endl;
-                continue; // 루프 계속
+        case 0: // Single Frame
+            uds_response = isotp_handle_single_frame(rx_frame);
+            break;
+        case 1: // First Frame
+            uds_response = isotp_handle_multi_frame(can_sock, rx_frame);
+            break;
+        default:
+            std::cerr << "잘못된 시작 프레임 수신 (Type: " << (int)pci_type << ")" << std::endl;
+            continue; // 루프 계속
         }
 
         if (!session_active) break;
@@ -161,7 +161,8 @@ void can_to_doip_forwarder(int can_sock, int client_sock, std::atomic<bool>& ses
         if (first_byte >= 0x40 && first_byte <= 0x7F) {
             // 원본 UDS 응답을 그대로 사용
             final_uds_payload = uds_response;
-        } else {
+        }
+        else {
             // 표준 응답 SID가 아닌 경우 (예: DID로 시작하는 주기적 데이터)
             // 진단 라이브러리가 인식할 수 있도록 0x62(RDBI 긍정 응답)를 붙여줍니다.
             std::cout << "[Gateway] 비표준 응답을 정식 UDS 응답(0x62)으로 변환합니다." << std::endl;
@@ -185,8 +186,8 @@ void can_to_doip_forwarder(int can_sock, int client_sock, std::atomic<bool>& ses
         {
             std::lock_guard<std::mutex> lock(client_socket_mutex);
             if (write(client_sock, resp_msg.data(), resp_msg.size()) <= 0) {
-                 std::cerr << "[CAN->DoIP Thread] 클라이언트 소켓 쓰기 실패. 스레드 종료." << std::endl;
-                 session_active = false;
+                std::cerr << "[CAN->DoIP Thread] 클라이언트 소켓 쓰기 실패. 스레드 종료." << std::endl;
+                session_active = false;
             }
         }
     }
@@ -197,7 +198,7 @@ void can_to_doip_forwarder(int can_sock, int client_sock, std::atomic<bool>& ses
 void handle_doip_session(int client_sock) {
     int can_sock = setup_can_socket();
     if (can_sock < 0) {
-        std::cerr << "CAN 소켓 설정 실패." << std::endl; 
+        std::cerr << "CAN 소켓 설정 실패." << std::endl;
         return;
     }
     std::cout << "CAN 소켓이 성공적으로 설정되었습니다." << std::endl;
@@ -260,7 +261,7 @@ void handle_doip_session(int client_sock) {
             *client_addr_ptr = htons(CLIENT_LOGICAL_ADDRESS); // 클라이언트 주소
             *server_addr_ptr = htons(SERVER_LOGICAL_ADDRESS); // 서버(ECU) 주소
             *response_code_ptr = 0x10; // 0x10: 성공적으로 활성화됨
-            
+
             // 응답 전송
             {
                 std::lock_guard<std::mutex> lock(client_socket_mutex);
@@ -268,7 +269,7 @@ void handle_doip_session(int client_sock) {
             }
             continue;
         }
-        
+
         if (payload_type != 0x8001) continue;
 
         // DoIP ACK(0x8002) 전송
@@ -277,14 +278,14 @@ void handle_doip_session(int client_sock) {
         ack_header->version = 2; ack_header->inverse_version = ~2;
         ack_header->payload_type = htons(0x8002);
         ack_header->payload_length = htonl(5);
-            // ACK 페이로드 구성
+        // ACK 페이로드 구성
         uint16_t* ack_sa = (uint16_t*)(ack_msg.data() + sizeof(DoIPHeader));
         uint16_t* ack_ta = (uint16_t*)(ack_msg.data() + sizeof(DoIPHeader) + 2);
         uint8_t* ack_code = (uint8_t*)(ack_msg.data() + sizeof(DoIPHeader) + 4);
         *ack_sa = htons(SERVER_LOGICAL_ADDRESS); // 요청을 받은 주체 (ECU)
         *ack_ta = htons(CLIENT_LOGICAL_ADDRESS); // 요청을 보낸 주체 (진단기)
         *ack_code = 0x00;                        // 0x00: Positive ACK (정상 수신)
-        
+
         {
             std::lock_guard<std::mutex> lock(client_socket_mutex);
             write(client_sock, ack_msg.data(), ack_msg.size());
@@ -332,7 +333,8 @@ int setup_can_socket() {
 bool isotp_send(int sock, uint32_t can_id, const std::vector<uint8_t>& data) {
     if (data.size() <= 7) {
         return isotp_send_single_frame(sock, can_id, data);
-    } else {
+    }
+    else {
         return isotp_send_multi_frame(sock, can_id, data);
     }
 }
@@ -413,7 +415,8 @@ bool isotp_send_consecutive_frames(int sock, uint32_t can_id, const std::vector<
     long stmin_us = 0;
     if (stmin_raw <= 0x7F) {
         stmin_us = stmin_raw * 1000;
-    } else if (stmin_raw >= 0xF1 && stmin_raw <= 0xF9) {
+    }
+    else if (stmin_raw >= 0xF1 && stmin_raw <= 0xF9) {
         stmin_us = (stmin_raw - 0xF0) * 100;
     }
 
@@ -454,7 +457,7 @@ bool wait_for_flow_control(can_frame& fc_frame_out) {
         // --- FC 대기 로직 변경 ---
         // condition variable과 predicate을 확인하는 대신, queue가 비어있지 않을 때까지 기다립니다.
         std::unique_lock<std::mutex> lock(fc_queue_mutex);
-        if (!fc_queue_cv.wait_for(lock, std::chrono::seconds(2), []{ return !fc_frame_queue.empty(); })) {
+        if (!fc_queue_cv.wait_for(lock, std::chrono::seconds(2), [] { return !fc_frame_queue.empty(); })) {
             std::cerr << "FC 수신 타임아웃!" << std::endl;
             return false;
         }
@@ -466,7 +469,7 @@ bool wait_for_flow_control(can_frame& fc_frame_out) {
         std::cerr << "FC 큐에서 잘못된 데이터 수신." << std::endl;
         return false;
     }
-    
+
     // 유효한 FC 프레임 데이터를 can_frame 구조체로 복사
     memset(&fc_frame_out, 0, sizeof(can_frame));
     fc_frame_out.can_dlc = local_fc_frame_data.size();
@@ -488,13 +491,13 @@ std::vector<uint8_t> isotp_receive(int sock) {
 
     uint8_t pci_type = (rx_frame.data[0] & 0xF0) >> 4;
     switch (pci_type) {
-        case 0: // Single Frame
-            return isotp_handle_single_frame(rx_frame);
-        case 1: // First Frame
-            return isotp_handle_multi_frame(sock, rx_frame);
-        default: // Consecutive 또는 FlowControl 등, 첫 프레임으로 올 수 없음
-            std::cerr << "잘못된 시작 프레임 수신 (Type: " << (int)pci_type << ")" << std::endl;
-            return {};
+    case 0: // Single Frame
+        return isotp_handle_single_frame(rx_frame);
+    case 1: // First Frame
+        return isotp_handle_multi_frame(sock, rx_frame);
+    default: // Consecutive 또는 FlowControl 등, 첫 프레임으로 올 수 없음
+        std::cerr << "잘못된 시작 프레임 수신 (Type: " << (int)pci_type << ")" << std::endl;
+        return {};
     }
 }
 
@@ -508,7 +511,7 @@ std::vector<uint8_t> isotp_handle_single_frame(const can_frame& frame) {
 std::vector<uint8_t> isotp_handle_multi_frame(int sock, const can_frame& first_frame) {
     std::cout << "  <- CAN: First Frame 수신" << std::endl;
     uint16_t total_size = ((first_frame.data[0] & 0x0F) << 8) | first_frame.data[1];
-    
+
     std::vector<uint8_t> uds_rx_buffer;
     uds_rx_buffer.reserve(total_size);
     uds_rx_buffer.assign(&first_frame.data[2], &first_frame.data[first_frame.can_dlc]);
@@ -522,7 +525,7 @@ std::vector<uint8_t> isotp_handle_multi_frame(int sock, const can_frame& first_f
             std::cerr << "CF 수신 중 타임아웃" << std::endl;
             return {}; // 타임아웃
         }
-        
+
         if ((cf_frame.data[0] & 0xF0) != 0x20 || (cf_frame.data[0] & 0x0F) != expected_seq_num) {
             std::cerr << "잘못된 순서의 CF 또는 예상치 못한 프레임 수신" << std::endl;
             return {}; // 오류
@@ -532,7 +535,7 @@ std::vector<uint8_t> isotp_handle_multi_frame(int sock, const can_frame& first_f
         uds_rx_buffer.insert(uds_rx_buffer.end(), &cf_frame.data[1], &cf_frame.data[1] + bytes_to_copy);
         expected_seq_num = (expected_seq_num + 1) % 16;
     }
-    
+
     std::cout << "  <- CAN: 모든 Consecutive Frame 수신 완료" << std::endl;
     return uds_rx_buffer;
 }

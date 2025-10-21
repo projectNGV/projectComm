@@ -1,18 +1,20 @@
 from udsoncan.client import Client
 from udsoncan.services import RoutineControl
 from udsoncan.common.MemoryLocation import MemoryLocation
-from ..pc_doip_client import update_result_text
 
 global g_max_number_of_bytes
 g_max_number_of_bytes = 0
 
-def diagnostic_session_control(client: Client, session_type: int) -> bool:
+
+def diagnostic_session_control(client: Client, session_type: int, update_result_text) -> bool:
+    update_result_text("세션 요청")
+
     print(f"Switching to diagnostic session type 0x{session_type:02X}...")
     response = client.change_session(newsession=session_type)
     print(f"✅ Switched to session type 0x{session_type:02X} successfully.")
     return True
 
-def request_download(client: Client, start_addr: int, size: int) -> bool:
+def request_download(client: Client, start_addr: int, size: int, update_result_text) -> bool:
     mem_loc = MemoryLocation(address=start_addr, memorysize=size)
     print(f"Requesting download at address 0x{start_addr:08X} of size {size} bytes...")
     response = client.request_download(memory_location=mem_loc)
@@ -26,7 +28,7 @@ def request_download(client: Client, start_addr: int, size: int) -> bool:
     print(f"✅ Download request accepted. Max block size: {g_max_number_of_bytes}")
     return True
 
-def routine_control_erase_flash(client: Client, start_addr: int, size: int) -> bool:
+def routine_control_erase_flash(client: Client, start_addr: int, size: int, update_result_text) -> bool:
     mem_loc = MemoryLocation(address=start_addr, memorysize=size)
     print(f"Requesting flash erase at address 0x{start_addr:08X} of size {size} bytes...")
     erase_params = start_addr.to_bytes(4, 'big') + size.to_bytes(4, 'big')
@@ -34,7 +36,7 @@ def routine_control_erase_flash(client: Client, start_addr: int, size: int) -> b
     print("✅ Flash erase started successfully.")
     return True
 
-def transfer_data_blob(client: Client, data_blob: bytearray) -> bool:
+def transfer_data_blob(client: Client, data_blob: bytearray, update_result_text) -> bool:
     global g_max_number_of_bytes
     if g_max_number_of_bytes == 0:
         raise ValueError("Max number of bytes per block is not set. Please perform a request download first.")
@@ -49,7 +51,7 @@ def transfer_data_blob(client: Client, data_blob: bytearray) -> bool:
     print("✅ Data transfer completed successfully.")
     return True
 
-def request_transfer_exit(client: Client) -> bool:
+def request_transfer_exit(client: Client, update_result_text) -> bool:
     print("Requesting transfer exit...")
     response = client.request_transfer_exit()
     global g_max_number_of_bytes
@@ -57,7 +59,7 @@ def request_transfer_exit(client: Client) -> bool:
     print("✅ Transfer exit completed successfully.")
     return True
 
-def ecu_reset(client: Client, reset_type: int) -> bool:
+def ecu_reset(client: Client, reset_type: int, update_result_text) -> bool:
     print(f"Sending ECU Reset command with type 0x{reset_type:02X}...")
     response = client.ecu_reset(reset_type=reset_type)
     print("✅ ECU Reset command sent successfully.")
