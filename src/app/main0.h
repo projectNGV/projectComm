@@ -25,7 +25,8 @@
 #include "stm.h"
 #include "soa_handler.h"
 #include "soa_publisher.h"
-
+#include "cantp.h"
+#include "diagnosticsdata.h"
 
 void main0(void);
 

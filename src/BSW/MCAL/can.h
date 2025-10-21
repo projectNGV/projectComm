@@ -22,9 +22,7 @@
 /*********************************************************************************************************************/
 /* ID 값이 작을수록 우선순위(Priority)가 높음 */
 /* 진단 (UDS / ISO 14229) */
-#define CAN_UDS_REQ_ID              0x7E0    // UDS Request: Tester → ECU
-#define CAN_UDS_RES_ID              0x7E8    // UDS Response: ECU → Tester
-#define CAN_UDS_FUNC_ID             0x7DF    // UDS Functional Request (Broadcast)
+#define UDS_REQUEST_CAN_ID          0x7E0
 
 /* 서비스 지향 제어 (SOA: Service-Oriented Architecture) */
 #define CAN_SOA_CONTROL_ID          0x300    // SOME/IP 기반 제어 명령 (Drive, AEB, Auth 등)
@@ -32,7 +30,6 @@
 
 /* 센서 피드백 */
 #define CAN_TOF_ID                  0x200    // ToF 거리 데이터 전송
-
 
 /*********************************************************************************************************************/
 /*--------------------------------------------------Data Structures--------------------------------------------------*/

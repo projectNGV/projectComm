@@ -1,4 +1,6 @@
 #include "tof.h"
+#include "stm.h" //resetTofTimeoutTimer()
+
 
 static unsigned int g_TofValue;             // 현재 측정된 거리(mm)
 volatile bool aebEnableFlag = false;        // AEB 기능 ON/OFF 플래그
@@ -25,6 +27,8 @@ void tofUpdateFromCAN(unsigned char *rxData)
 
         // AEB 상태 갱신 (거리 기반)
         updateAebFlagByTof(g_TofValue);
+
+        resetTofTimeoutTimer();
     }
 }
 

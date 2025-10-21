@@ -30,10 +30,15 @@
 
 #include "main0.h"
 
+#include "bcb.h"
+
 IFX_ALIGN(4) IfxCpu_syncEvent g_cpuSyncEvent = 0;
 
 void core0_main(void)
 {
+    // BCB_ApplicationInit();
+
+
     IfxCpu_enableInterrupts();
     
     /* !!WATCHDOG0 AND SAFETY WATCHDOG ARE DISABLED HERE!!

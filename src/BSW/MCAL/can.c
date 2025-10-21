@@ -1,4 +1,9 @@
+/*********************************************************************************************************************/
+/*-----------------------------------------------------Includes------------------------------------------------------*/
+/*********************************************************************************************************************/
 #include "can.h"
+#include "cantp.h"
+#include "session.h"
 
 /*********************************************************************************************************************/
 /*-------------------------------------------------Global variables--------------------------------------------------*/
@@ -36,9 +41,7 @@ void canRxIsrHandler (void)
     int rxLen;
     canRecvMsg(&rxID, rxData, &rxLen);
 
-//    myPrintf("rxID: 0x%x\n", rxID);
-//    myPrintf("cmdType: 0x%x\n", rxData[0]);
-//    myPrintf("cmdData: %x\n", rxData[1]);
+    session_resetTimer();
 
     switch (rxID)
     {
@@ -48,16 +51,15 @@ void canRxIsrHandler (void)
                 tofCallback(rxData);  // ToF 모듈에서 등록한 처리 함수 호출
             break;
         }
-        case CAN_SOA_CONTROL_ID :
+        case CAN_SOA_CONTROL_ID :   // SOA 제어 명령
         {
             unsigned char cmdType = rxData[0];
-
-//            myPrintf("\n[CAN RX] ID=0x%x Len=%d\n", rxID, rxLen);
-//            myPrintf("[CAN RX] Data: ");
-//            for (int i = 0; i < rxLen; i++) myPrintf("%02X ", rxData[i]);
-//            myPrintf("\n[CAN RX] Parsed cmdType=0x%02X\n", cmdType);
-
             canSOAHandler(cmdType, rxData + 1, rxLen - 1);
+            break;
+        }
+        case UDS_REQUEST_CAN_ID:    // UDS 진단 요청 수신
+        {
+            CANTP_HandleRxISR(rxData, rxID);
             break;
         }
         default :

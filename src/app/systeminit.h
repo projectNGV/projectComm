@@ -13,6 +13,8 @@
 #include "buzzer.h"
 #include "stm.h"
 #include "soa_publisher.h"
+#include "session.h"
+#include "diagnosticsdata.h"
 
 void systemInit(void);
 
