@@ -4,6 +4,8 @@
 #include "stdbool.h"
 #include "control.h"
 #include "buzzer.h"
+#include "can.h"
+#include "soa_publisher.h"
 
 #define REVERSE_TIME_MS         150
 #define DUTY_LIMIT_DISTANCE_MM  950

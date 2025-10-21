@@ -1,4 +1,9 @@
+/*********************************************************************************************************************/
+/*-----------------------------------------------------Includes------------------------------------------------------*/
+/*********************************************************************************************************************/
 #include "can.h"
+#include "cantp.h"
+#include "session.h"
 
 /*********************************************************************************************************************/
 /*-------------------------------------------------Global variables--------------------------------------------------*/
@@ -31,33 +36,32 @@ void canTxIsrHandler (void)
 IFX_INTERRUPT(canRxIsrHandler, 0, ISR_PRIORITY_CAN_RX);
 void canRxIsrHandler (void)
 {
-//    unsigned int rxID;
-//    char rxData[8] = {0, };
-//    int rxLen;
-//    canRecvMsg(&rxID, rxData, &rxLen);
-//
-//    switch (rxID)
-//    {
-//        case CAN_TOF_ID :
-//            tofUpdateFromCAN(rxData);
-//            break;
-//        default :
-//            tofUpdateFromCAN(rxData);
-//            break;
-//    }
-
     unsigned int rxID;
     unsigned char rxData[8] = {0, };
     int rxLen;
     canRecvMsg(&rxID, rxData, &rxLen);
-    
+
+    session_resetTimer();
+
     switch (rxID)
     {
         case CAN_TOF_ID :
-            if (tofCallback != NULL) {
+        {
+            if (tofCallback != NULL)
                 tofCallback(rxData);  // ToF 모듈에서 등록한 처리 함수 호출
-            }
             break;
+        }
+        case CAN_SOA_CONTROL_ID :   // SOA 제어 명령
+        {
+            unsigned char cmdType = rxData[0];
+            canSOAHandler(cmdType, rxData + 1, rxLen - 1);
+            break;
+        }
+        case UDS_REQUEST_CAN_ID:    // UDS 진단 요청 수신
+        {
+            CANTP_HandleRxISR(rxData, rxID);
+            break;
+        }
         default :
 //            tofUpdateFromCAN(rxData);
             break;
@@ -155,13 +159,18 @@ void canSetFilterMask (uint32 id, uint32 mask)
     IfxCan_Can_setStandardFilter(&g_mcmcan.canDstNode, &g_mcmcan.canFilter);
 }
 
-void canSendMsg (unsigned int id, const char *txData, int len)
+void canSendMsg (unsigned int id, const unsigned char *txData, int len)
 {
     /* Initialization of the TX message with the default configuration */
     IfxCan_Can_initMessage(&g_mcmcan.txMsg);
 
     g_mcmcan.txMsg.messageId = id;
     g_mcmcan.txMsg.dataLengthCode = len;
+
+    /* 데이터 초기화 후 실제 길이만 복사 */
+    for (int i = 0; i < 8; i++) {
+        g_mcmcan.txData[i] = 0x00;
+    }
 
     /* Define the content of the data to be transmitted */
     for (int i = 0; i < 8; i++)

@@ -2,22 +2,22 @@
 #ifndef ASW_CONTROL_H_
 #define ASW_CONTROL_H_
 
-#include "bluetooth.h"
 #include "motor.h"
-#include "tof.h"
 #include "led.h"
-#include "autopark.h"
+#include "stdbool.h"
 
 #define Forward 1
 #define Backward 0
 
 typedef struct {
-    int baseDuty;       // 사용자 설정 Duty
-    int currentDuty;    // 현재 Duty
-    char currentDir;    // 현재 주행 방향
-    char prevDir;       // 이전 주행 방향
-    char lastKeyInput;  // 방금 받은 키보드 입력
+    int currentDuty;            // 현재 PWM Duty
+    int currentDir;            // 현재 주행 방향 ('8': 전진, '2': 후진 등)
+    bool aebActiveFlag;         // AEB 기능 활성화 여부 (TRUE: AEB 작동 중)
+    bool autoParkFlag;          // AutoPark 기능 요청 여부
 } MotorState;
+
+// 다른 모듈에서 접근 가능하도록 extern 선언
+extern MotorState motorState;
 
 void moveForward(int duty);
 void moveBackward(int duty);
@@ -28,10 +28,6 @@ void moveForwardRight(int duty);
 void moveBackwardkLeft(int duty);
 void moveBackwardRight(int duty);
 
-void handleDirectionCommand(char cmd, MotorState* state);
-void handleDutyCommand(char cmd, MotorState* state);
-void handleBrakeCommand(MotorState* state);
-void motorUpdateState(MotorState* state);
 void motorRunCommand (MotorState* state);
 
 #endif /* ASW_CONTROL_H_ */

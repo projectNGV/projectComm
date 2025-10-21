@@ -9,9 +9,14 @@
 #include "buzzer.h"
 #include "led.h"
 #include "gpt12.h"
+#include "bluetooth.h"
+#include "motor.h"
+#include "soa_publisher.h"
 
 #include <stdlib.h>
 #include <stdio.h>
+
+#define RX_BUFFER_SIZE 32
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -23,8 +28,9 @@
 /*-------------------------------------------------Global variables--------------------------------------------------*/
 /*********************************************************************************************************************/
 
-extern volatile boolean g_rx_getLine;
-extern volatile char g_rx_buffer[RX_BUFFER_SIZE];
+volatile boolean g_rx_getLine;
+volatile char g_rx_buffer[RX_BUFFER_SIZE];
+static int rx_idx = 0;
 extern volatile uint16 g_beepInterval;
 
 /*********************************************************************************************************************/
@@ -51,6 +57,7 @@ static int stopDistance = 120000;
 /*********************************************************************************************************************/
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
+void rxBufferFlush (void);
 
 static void foundSpace ();
 static void rotate ();
@@ -68,6 +75,13 @@ void autoPark ();
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
 /*********************************************************************************************************************/
+
+void rxBufferFlush (void)
+{
+    rx_idx = 0;
+    memset((void*) g_rx_buffer, 0, RX_BUFFER_SIZE);
+    g_rx_getLine = FALSE;
+}
 
 static void foundSpace ()
 {
@@ -294,7 +308,7 @@ void autoParkTune (void)
                 break;
             case 'c' :
                 rxBufferFlush();
-                isTuned = true;
+                isTuned = TRUE;
                 break;
             case '1' :
                 rxBufferFlush();
@@ -331,8 +345,13 @@ void autoParkTune (void)
 
 void autoPark (void)
 {
+    sendAutoparkStateIfChanged(0x01); // 공간 탐색 중
     foundSpace();
+
+    sendAutoparkStateIfChanged(0x02); // 주차 중
     rotate();
     delayMs(MOTOR_STOP_DELAY);
     goBackWard();
+
+    sendAutoparkStateIfChanged(0x03); // 완료
 }

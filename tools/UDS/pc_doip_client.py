@@ -30,13 +30,8 @@ ECU_LOGICAL_ADDRESS = 0x1000 # ECU 논리 주소 (필요시 수정)
 # --- ✨ [추가] 참조 스크립트의 상수 ---
 TOF_SENSOR_DID = 0x1000
 ULTRASONIC_SENSOR_DID = 0x2000
-ULTRASONIC_RIGHT_SENSOR_DID = 0x2001
-ULTRASONIC_REAR_SENSOR_DID = 0x2002
 TOF_INVALID_VALUE = 0xFFFFFF
 US_INVALID_VALUE = 0xFFFF # 초음파 에러 값 (가정)
-
-
-current_session_type = 0x01  # 0x01: Default, 0x03: Extended
 
 
 # --- DID 및 Codec 정의 ---
@@ -100,7 +95,7 @@ def communication_thread(client, root_window):
     print("✅ [PY_THREAD_Worker] UDS 워커 스레드 시작. GUI 요청 대기 중...")
     while not stop_event.is_set():
         try:
-            task = task_queue.get(timeout=10)
+            task = task_queue.get(timeout=0.1)
             
             task_name = task['function'].__name__
             print(f"\n[PY_THREAD_Worker] 🔄 작업 시작: {task_name} (Args: {task.get('args', [])})")
@@ -132,7 +127,7 @@ def uds_listener_thread(conn, data_queue, stop_event):
     
     while not stop_event.is_set():
         try:
-            payload = conn.wait_frame(timeout=10) 
+            payload = conn.wait_frame(timeout=0.5) 
             
             if payload:
                 # 0x62 = ReadDataBy(Periodic)Identifier Positive Response
@@ -261,14 +256,11 @@ def request_periodic_did(did, subfunction):
 
 # (기존 핸들러들)
 def _session_change_handler(client, session_type):
-    global current_session_type  # ← 추가
-
     session_name = "Extended" if session_type == 0x03 else "Default"
     update_result_text(f"[*] {session_name} 세션 요청 전송 중...")
     try:
         response = client.change_session(session_type)
         if response.positive:
-            current_session_type = session_type  # ✅ 세션 상태 저장
             update_result_text(f"[+] {session_name} 세션으로 성공적으로 전환되었습니다.")
         else:
             update_result_text(f"[-] 세션 전환 실패: {response.code_name}")
@@ -345,11 +337,6 @@ def _dtc_read_handler(client):
 
 def _aeb_write_handler(client, is_on):
     # ... (기존 v1.2 코드와 동일) ...
-    global current_session_type
-    if current_session_type == 0x01:
-        update_result_text("⚠️ Default Session에서는 실행될 수 없습니다.")
-        return
-    
     did_to_write = 0x3000
     data_to_write = 0x01 if is_on else 0x00
     state_text = "ON" if is_on else "OFF"
@@ -380,7 +367,7 @@ def _did_read_handler(client, did):
                         display_value = "유효하지 않음 (Timeout)"
                     else:
                         display_value = f"{numeric_value} mm"
-                elif did in [ULTRASONIC_SENSOR_DID, ULTRASONIC_RIGHT_SENSOR_DID, ULTRASONIC_REAR_SENSOR_DID]:
+                elif did in [ULTRASONIC_SENSOR_DID, 0x2001, 0x2002]:
                     numeric_value = int.from_bytes(data_bytes, 'big')
                     if numeric_value == US_INVALID_VALUE:
                         display_value = "유효하지 않음"
@@ -404,11 +391,6 @@ def _did_read_handler(client, did):
 
 def _routine_start_handler(client, rid):
     # ... (기존 v1.2 코드와 동일) ...
-    global current_session_type  # ← 추가
-    if current_session_type == 0x01:
-        update_result_text("⚠️ Default Session에서는 실행될 수 없습니다.")
-        return
-    
     if rid == 0x0001: routine_name = "모터 정회전"
     elif rid == 0x0002: routine_name = "모터 역회전"
     else: routine_name = f"알 수 없는 루틴 (ID: 0x{rid:04X})"
@@ -474,7 +456,7 @@ def flush_connection(conn):
     """[신규] conn 버퍼에 남아있을 수 있는 0x62 응답을 비웁니다."""
     print("...수신 버퍼를 정리하는 중...")
     try:
-        while conn.wait_frame(timeout=10) is not None:
+        while conn.wait_frame(timeout=0.05) is not None:
             pass
     except Exception:
         pass # 타임아웃 예외는 정상
@@ -532,7 +514,7 @@ def toggle_listener_mode(conn):
         # 2. 리스너 스레드 중지
         stop_listener_event.set()
         if g_listener_thread and g_listener_thread.is_alive():
-            g_listener_thread.join(timeout=10)
+            g_listener_thread.join(timeout=1)
             
         # 3. [중요] 리스너가 점유했던 conn 버퍼 플러시
         flush_connection(conn)
@@ -602,15 +584,15 @@ def process_periodic_data_queue():
 
 # --- GUI 생성 ---
 window = tk.Tk()
-window.title("ECU 진단 툴 (v1.3)")
-window.geometry("500x800")
+window.title("ECU 진단 툴 (v1.3 - 0x2A 주기적 수신)")
+window.geometry("600x800")
 window.configure(bg="#f0f0f0")
 
 default_font = tkFont.nametofont("TkDefaultFont")
 default_font.configure(family="맑은 고딕", size=9)
 
-#session_status_label = tk.Label(window, text="현재 세션: 확인 중...", font=("맑은 고딕", 9, "italic"), bg="#f0f0f0", fg="blue")
-#session_status_label.pack(pady=(5, 0))
+session_status_label = tk.Label(window, text="현재 세션: 확인 중...", font=("맑은 고딕", 9, "italic"), bg="#f0f0f0", fg="blue")
+session_status_label.pack(pady=(5, 0))
 
 # --- ✨ [수정] 1. 실시간 센서 데이터 그룹 ---
 rt_frame = tk.LabelFrame(window, text=" 실시간 센서 데이터 (0x2A 주기적 수신) ", padx=10, pady=5, bg="#e0e0ff")
@@ -647,9 +629,9 @@ laser_button = tk.Button(sensor_frame, text="레이저 (1회)", command=lambda: 
 laser_button.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
 left_us_button = tk.Button(sensor_frame, text="초음파(좌) (1회)", command=lambda: request_did_read(ULTRASONIC_SENSOR_DID))
 left_us_button.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-right_us_button = tk.Button(sensor_frame, text="초음파(우) (1회)", command=lambda: request_did_read(ULTRASONIC_RIGHT_SENSOR_DID))
+right_us_button = tk.Button(sensor_frame, text="초음파(우) (1회)", command=lambda: request_did_read(0x2001))
 right_us_button.grid(row=0, column=2, padx=5, pady=5, sticky="ew")
-rear_us_button = tk.Button(sensor_frame, text="초음파(후) (1회)", command=lambda: request_did_read(ULTRASONIC_REAR_SENSOR_DID))
+rear_us_button = tk.Button(sensor_frame, text="초음파(후) (1회)", command=lambda: request_did_read(0x2002))
 rear_us_button.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
 all_us_button = tk.Button(sensor_frame, text="초음파(모두) (1회)", command=request_all_ultrasonic_data, font=("맑은 고딕", 9, "bold"))
 all_us_button.grid(row=0, column=4, padx=5, pady=5, sticky="ew")
@@ -763,10 +745,10 @@ if __name__ == "__main__":
         stop_listener_event.set() 
         
         if comm_thread:
-            comm_thread.join(timeout=10)
+            comm_thread.join(timeout=1)
             
         if g_listener_thread and g_listener_thread.is_alive():
-            g_listener_thread.join(timeout=10)
+            g_listener_thread.join(timeout=1)
                 
         if doip_client:
             doip_client.close()

@@ -9,6 +9,7 @@
 
 #include "priority.h"
 #include "tof.h"
+#include "soa_handler.h"
 
 /*********************************************************************************************************************/
 /*------------------------------------------------------Macros-------------------------------------------------------*/
@@ -16,8 +17,19 @@
 #define CAN_MESSAGE_ID              (uint32)0x777           /* Message ID that will be used in arbitration phase    */
 #define MAXIMUM_CAN_DATA_PAYLOAD    2                       /* Define maximum classical CAN payload in 4-byte words */
 
+/*********************************************************************************************************************/
+/*------------------------------------------------------CAN ID-------------------------------------------------------*/
+/*********************************************************************************************************************/
+/* ID 값이 작을수록 우선순위(Priority)가 높음 */
+/* 진단 (UDS / ISO 14229) */
+#define UDS_REQUEST_CAN_ID          0x7E0
 
-#define CAN_TOF_ID 0x200
+/* 서비스 지향 제어 (SOA: Service-Oriented Architecture) */
+#define CAN_SOA_CONTROL_ID          0x300    // SOME/IP 기반 제어 명령 (Drive, AEB, Auth 등)
+#define CAN_SOA_STATUS_ID           0x310    // SOME/IP 기반 상태 publish
+
+/* 센서 피드백 */
+#define CAN_TOF_ID                  0x200    // ToF 거리 데이터 전송
 
 /*********************************************************************************************************************/
 /*--------------------------------------------------Data Structures--------------------------------------------------*/
@@ -56,7 +68,7 @@ void canInit(CAN_BAUDRATES ls_baudrate, CAN_NODE CAN_Node);
 void canSetFilterRange(uint32 start, uint32 end);
 void canSetFilterMask(uint32 id, uint32 mask);
 
-void canSendMsg(unsigned int id, const char *txData, int len);
+void canSendMsg(unsigned int id, const unsigned char *txData, int len);
 int canRecvMsg (unsigned int *id, unsigned char *rxData, int *len);
 
 

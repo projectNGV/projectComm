@@ -1,45 +1,10 @@
 #include "asclin1.h"
 #include "main0.h"
 
-extern MotorState motorState;
-extern volatile boolean g_isLogin;
-
-volatile boolean g_rx_getLine;
-volatile char g_rx_buffer[RX_BUFFER_SIZE];
-static int rx_idx = 0;
-
-void rxBufferFlush (void);
-
-void rxBufferFlush (void)
-{
-    rx_idx = 0;
-    memset((void*) g_rx_buffer, 0, RX_BUFFER_SIZE);
-    g_rx_getLine = FALSE;
-}
-
 IFX_INTERRUPT(asclin1RxIsrHandler, 0, ISR_PRIORITY_ASCLIN1_RX);
 void asclin1RxIsrHandler (void)
 {
-    char data = asclin1InUart();
-    if (!g_isLogin)
-    {
-        if (data == '\n' || data == '\r')
-        {
-            g_rx_buffer[rx_idx] = '\0';
-            g_rx_getLine = TRUE;
-        }
-        else
-        {
-            if (rx_idx < (RX_BUFFER_SIZE - 1))
-            {
-                g_rx_buffer[rx_idx++] = data;
-            }
-        }
-    }
-    else
-    {
-        motorState.lastKeyInput = data;
-    }
+
 }
 
 /* Initialise asynchronous interface to operate at baudrate,8,n,1 */

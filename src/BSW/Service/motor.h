@@ -17,12 +17,12 @@
 
 void motorInit(void);
 
-///* 1: 정방향, 2: 역방향 */
+///* 1: 정방향, 0: 역방향 */
 void motorMovChA(int dir);
 void motorStopChA(void);
 ///* 1: 정방향, 0: 역방향 */
 void motorMovChAPwm(int duty, int dir);
-///* 1: 정방향, 2: 역방향 */
+///* 1: 정방향, 0: 역방향 */
 void motorMovChB(int dir);
 void motorStopChB(void);
 ///* 1: 정방향, 0: 역방향 */

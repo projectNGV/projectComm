@@ -4,6 +4,9 @@
 #include "control.h"
 #include "aeb.h"
 #include "autopark.h"
+#include "led.h"
+#include "soa_handler.h"
+#include "tof.h"
 
 typedef enum {
     STATE_IDLE,
