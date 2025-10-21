@@ -24,7 +24,7 @@ from ota.ota_main import run_ota_process
 
 
 # --- 설정값 ---
-RPI_HOST = '192.168.137.10' # 실제 라즈베리파이 IP
+RPI_HOST = '192.168.2.15' # 실제 라즈베리파이 IP
 ECU_LOGICAL_ADDRESS = 0x1000 # ECU 논리 주소 (필요시 수정)
 
 # --- ✨ [추가] 참조 스크립트의 상수 ---
@@ -55,7 +55,7 @@ uds_config = {
     'data_identifiers': {did: codec for did, (_, codec) in DID_DESCRIPTIONS.items() if codec is not None},
     'p2_timeout': 10,
     'p2_star_timeout': 15,
-    'request_timeout': 5, # 넉넉하게 5초
+    'request_timeout': 15, # 넉넉하게 5초
 }
 
 # --- 전역 변수 ---
