@@ -7,7 +7,7 @@
  * ============================================================ */
 
 static const char *PASSWORD = "1234";      // 인증용 비밀번호
-volatile bool g_isLogin = TRUE;        // 인증 상태 플래그 (TRUE: 로그인됨)
+volatile bool g_isLogin = false;        // 인증 상태 플래그 (TRUE: 로그인됨)
 unsigned char g_authPw[8];                 // 수신된 AUTH 문자열 저장 (최대 7B + NULL)
 int duty = 0;
 

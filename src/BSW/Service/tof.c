@@ -2,7 +2,7 @@
 #include "stm.h" //resetTofTimeoutTimer()
 
 
-static unsigned int g_TofValue;             // 현재 측정된 거리(mm)
+unsigned int g_TofValue;             // 현재 측정된 거리(mm)
 volatile bool aebEnableFlag = false;        // AEB 기능 ON/OFF 플래그
 
 void tofInit(void)

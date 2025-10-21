@@ -10,7 +10,7 @@ void soaPublisherInit(void)
 {
     prevAebState = false;
     prevAutoparkState = 0x00;
-    prevAuthState = true;
+    prevAuthState = false;
     prevTofValue = 0;
 }
 
