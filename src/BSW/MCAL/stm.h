@@ -7,7 +7,7 @@
 
 #define STM_TICK_500MS   100000000ULL   // 100 MHz 기준 500ms (0.5초)
 
-void stm0IsrHandler(void);
+void stm1IsrHandler(void);
 void stmInterruptInit(void);
 
 
