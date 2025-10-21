@@ -22,8 +22,6 @@ from typing import Any, Tuple, Dict, Optional
 
 from ota.ota_main import run_ota_process
 
-from .ota.ota_main import run_ota_process
-
 
 # --- 설정값 ---
 RPI_HOST = '192.168.137.10' # 실제 라즈베리파이 IP
