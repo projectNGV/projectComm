@@ -133,7 +133,7 @@ void UDS_HandlePeriodicTransmission(void) {
     }
 }
 
-// 설정값을 초기화하는 함수 (부팅 시 1회 호출)
+// 설정값을 초기화
 void config_init(void)
 {
     // 나중에는 여기서 DFlash의 값을 읽어와 g_config를 채웁니다.
@@ -145,11 +145,4 @@ void config_init(void)
     strcpy(g_config.vin, "KR01CAR00PS000001");
     strcpy(g_config.manufacturingDate, "2025-10-22");
     strcpy(g_config.supplier, "Hyundai Autoever");
-}
-
-// 주기적으로 호출될 관리 함수
-void config_mainFunction(void)
-{
-    // 나중에는 여기에 'g_config에 변경이 생겼으면 DFlash에 저장'하는
-    // 로직을 추가하게 됩니다.
 }

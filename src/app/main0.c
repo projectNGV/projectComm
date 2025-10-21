@@ -24,6 +24,7 @@ void main0 (void)
         handleStateMachine(&motorState);
 
         CANTP_MainFunction();
+        diagnoseUltrasonicSensor();
         UDS_HandlePeriodicTransmission(); // 주기적 전송 처리 함수 호출
     }
 

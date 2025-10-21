@@ -86,7 +86,6 @@ extern PeriodicTransmission g_periodicTasks[MAX_PERIODIC_TASKS];
 
 // '설정값 변수가 있다'고 외부에 알리는 선언 (extern) 실제는 .c파일에 존재
 extern SystemConfig g_config;
-
 // 지원 DID 목록 배열이 외부에 존재한다고 선언
 extern uint16 SUPPORTED_DIDS[];
 // 지원 DID 개수도 외부에 존재한다고 선언
@@ -100,12 +99,7 @@ extern uint8 NUM_SUPPORTED_DIDS;
 /*------------------------------------------------Function Prototypes------------------------------------------------*/
 /*********************************************************************************************************************/
 void UDS_HandlePeriodicTransmission(void);
-
-// 설정값을 초기화하는 함수 선언
 void config_init(void);
-
-// 설정값을 주기적으로 관리하는 함수 선언 (DFlash 저장 등)
-void config_mainFunction(void);
 
 
 #endif /* BSW_SERVICE_DIAGNOSTICS_DIAGNOSTICSDATA_H_ */

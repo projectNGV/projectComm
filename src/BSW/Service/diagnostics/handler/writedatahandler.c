@@ -51,12 +51,6 @@
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
 /*********************************************************************************************************************/
-
-/*
-0x2E (WriteDataByIdentifier),
-0x3D (WriteMemoryByAddress) 등 데이터 쓰기 관련 SID 핸들러 포함.
-*/
-
 // 0x2E: Write Data By Identifier Handler
 void handleSID2E(const uint8_t* data, uint16_t length, const uint8_t sid) {
     // 세션 체크: Extended 세션 필요
@@ -71,13 +65,12 @@ void handleSID2E(const uint8_t* data, uint16_t length, const uint8_t sid) {
     }
 
     uint16_t did = ((uint16_t)data[1] << 8) | data[2];
-
     switch (did) {
         case UDS_DID_AEB_REMOTE_MASTER_SWITCH:
             if (length == 4) { // 데이터 길이 1바이트 확인
-                uint8_t new_status = data[3];
-                if (new_status == 0x00 || new_status == 0x01) {
-                    g_config.isAebEnabled = (new_status == 0x01); // config.h 에 선언 가정
+                uint8_t newStatus = data[3];
+                if (newStatus == 0x00 || newStatus == 0x01) {
+                    g_config.isAebEnabled = (newStatus == 0x01); // config.h 에 선언 가정
                     myPrintf("UDS: AEB Status written to %d\n", g_config.isAebEnabled);
 
                     uint8_t payload[3]; // SID(1)+DID(2)
@@ -86,10 +79,12 @@ void handleSID2E(const uint8_t* data, uint16_t length, const uint8_t sid) {
                     payload[2] = did & 0xFF;
 
                     CANTP_SendResponse(payload, sizeof(payload));
-                } else {
+                }
+                else {
                     sendNegativeResponse(sid, UDS_NRC_REQUEST_OUT_OF_RANGE); // 0x31
                 }
-            } else {
+            }
+            else {
                 sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT); // 0x13
             }
             break;

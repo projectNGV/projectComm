@@ -103,10 +103,10 @@ void handleSID10(const uint8_t* data, uint16_t length, const uint8_t sid) {
 
 // 0x11: ECU Reset Handler
 void handleSID11(const uint8_t* data, uint16_t length, const uint8_t sid) {
-    // 세션 체크: Extended 세션에서만 허용 (다른 개발자 코드와 다름, 확인 필요)
+    // 세션 체크: Extended 세션에서만 허용
     if (session_getCurrent() != SESSION_EXTENDED) {
          sendNegativeResponse(sid, UDS_NRC_SUBFUNCTION_NOT_SUPPORTED_IN_ACTIVE_SESSION); // 0x7E
-         // 또는 sendNegativeResponse(sid, UDS_NRC_CONDITIONS_NOT_CORRECT); // 0x22
+         // sendNegativeResponse(sid, UDS_NRC_CONDITIONS_NOT_CORRECT); // 0x22
          return;
     }
 
@@ -127,7 +127,6 @@ void handleSID11(const uint8_t* data, uint16_t length, const uint8_t sid) {
             CANTP_SendResponse(payload, sizeof(payload));
             // delayMs(100); // 🚨 응답 전송 보장 딜레이
         }
-        myPrintf("UDS: Performing ECU Hard Reset...\n");
         // 실제 시스템 리셋 함수 호출
         // IfxScuWdt_performSystemReset();
     } else {
@@ -165,6 +164,7 @@ void handleSID3E(const uint8_t* data, uint16_t length, const uint8_t sid) {
         uint8_t payload[2];
         payload[0] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x7E
         payload[1] = subFunctionCode;                // 0x00
+
         CANTP_SendResponse(payload, sizeof(payload));
     }
 }

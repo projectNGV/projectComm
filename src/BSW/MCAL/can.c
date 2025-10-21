@@ -54,21 +54,6 @@ void canRxIsrHandler (void)
         case UDS_REQUEST_CAN_ID: // UDS 진단 요청 수신
         {
             CANTP_HandleRxISR(rxData, rxID);
-//            uint8 pci_type = (rxData[0] & 0xF0) >> 4; // 프레임 종류 식별
-//
-//            switch (pci_type) {
-//                case 0: // Single Frame (SF)
-//                    handleSingleFrame(rxData);
-//                    break;
-//                case 1: // First Frame (FF)
-//                    handleFirstFrame(rxData);
-//                    break;
-//                case 2: // Consecutive Frame (CF)
-//                    handleConsecutiveFrame(rxData);
-//                    break;
-//                case 3: // flow control Frame (FC)
-//                    handleFlowControl(rxData);
-//            }
             break;
         }
         default :

@@ -54,15 +54,6 @@
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
 /*********************************************************************************************************************/
-
-
-/*
-0x22 (ReadDataByIdentifier),
-0x23 (ReadMemoryByAddress),
-0x24 (ReadScalingDataByIdentifier),
-0x2A (ReadDataByPeriodicIdentifier) 등 데이터 읽기 관련 SID 핸들러 포함.
-*/
-
 // 0x22: Read Data By Identifier Handler
 void handleSID22(const uint8_t* data, uint16_t length, const uint8_t sid) {
     // 세션 체크 (Default 이상 허용)
@@ -215,7 +206,6 @@ void handleSID22(const uint8_t* data, uint16_t length, const uint8_t sid) {
                 responseMsg[responseLen++] = (uint8_t)(SUPPORTED_DIDS[i] & 0xFF);
             }
 
-            //responseLen = ((responseLen + 3) / 4) * 4;
             CANTP_SendResponse(responseMsg, responseLen);
             break;
         }
@@ -262,10 +252,8 @@ void handleSID2A(const uint8_t* data, uint16_t length, const uint8_t sid) {
                 g_periodicTasks[task_index].timer = g_periodicTasks[task_index].intervalMs;
 
                 CANTP_SendResponse(payload, sizeof(payload));
-                myPrintf("UDS: Start Periodic DID 0x%04X\n", requestedDid);
 
                 if (MODULE_STM0.ICR.B.CMP1EN == 0) {
-                    myPrintf("STM1 interrupt was disabled. Reactivating and scheduling next...\n");
                     // 다음 인터럽트 시점 설정 (현재 시간 + 주기)
                     MODULE_STM0.CMP[1].U = (uint32_t)(MODULE_STM0.TIM0.U + PERIODIC_TICKS);
                     // 인터럽트 플래그 클리어 및 활성화
@@ -278,7 +266,6 @@ void handleSID2A(const uint8_t* data, uint16_t length, const uint8_t sid) {
                 g_periodicTasks[task_index].isActive = 0;
 
                 CANTP_SendResponse(payload, sizeof(payload));
-                myPrintf("UDS: Stop Periodic DID 0x%04X\n", requestedDid);
                 break;
 
             default:

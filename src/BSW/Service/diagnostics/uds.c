@@ -32,7 +32,6 @@
 #include "uds.h"
 #include "can.h"
 #include "cantp.h"      // 응답 전송을 위해 CAN-TP 계층 함수를 호출하기 위함
-//#include "uart.h"
 #include "tof.h"        // tofGetValue() 사용
 #include <string.h>
 

@@ -67,7 +67,8 @@ void dtc_updateStatus(uint32 dtc_code, bool is_faulty) {
             if (is_faulty) {
                 // 고장이 발생했다면, status의 'testFailed' 비트를 1로 설정합니다.
                 g_dtcStorage[i].status |= DTC_STATUS_TEST_FAILED;
-            } else {
+            }
+            else {
                 // 고장이 아니라면, 'testFailed' 비트를 0으로 되돌립니다.
                 g_dtcStorage[i].status &= ~DTC_STATUS_TEST_FAILED;
             }

@@ -51,15 +51,7 @@
 /*********************************************************************************************************************/
 /*---------------------------------------------Function Implementations----------------------------------------------*/
 /*********************************************************************************************************************/
-
-
-/*
-0x14 (ClearDiagnosticInformation),
-0x19 (ReadDTCInformation),
-0x85 (ControlDTCSetting) 등 DTC 관련 SID 핸들러 포함.
-*/
-
-/* ---- 0x19: Read DTC Information Handler ---- */
+// 0x19: Read DTC Information Handler
 void handleSID19(const uint8_t* data, uint16_t length, const uint8_t sid) {
     // 세션 체크 (Default 이상 허용)
     if (session_getCurrent() < SESSION_DEFAULT) {
@@ -75,6 +67,23 @@ void handleSID19(const uint8_t* data, uint16_t length, const uint8_t sid) {
     uint8_t subFunction = data[1];
 
     if (subFunction == 0x02) { // reportDTCByStatusMask
+//        uint8 payload[50];
+//        uint16 payloadLength = 0;
+//        payload[payloadLength++] = UDS_POSITIVE_RESPONSE_SID(sid);
+//        payload[payloadLength++] = subFunction;
+//        payload[payloadLength++] = data[2]; //statusMask
+//
+//        for (int i = 0; i < MAX_DTCS; i++)
+//        {
+//            if (g_dtcStorage[i].status & DTC_STATUS_TEST_FAILED)
+//            {
+//                payload[payloadLength++] = (uint8) (g_dtcStorage[i].dtc_code >> 16);
+//                payload[payloadLength++] = (uint8) (g_dtcStorage[i].dtc_code >> 8);
+//                payload[payloadLength++] = (uint8) (g_dtcStorage[i].dtc_code & 0xFF);
+//                payload[payloadLength++] = g_dtcStorage[i].status;
+//            }
+//        }
+
         if (length != 3) {
              sendNegativeResponse(sid, UDS_NRC_INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
              return;
@@ -82,27 +91,28 @@ void handleSID19(const uint8_t* data, uint16_t length, const uint8_t sid) {
         uint8_t statusMask = data[2];
 
         uint8_t payload[MAX_DTCS * 4 + 3];
-        uint16_t plen = 0;
+        uint16_t payloadLength = 0;
 
-        payload[plen++] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x59
-        payload[plen++] = subFunction;                    // 0x02
-        payload[plen++] = statusMask;                     // Status Mask 에코
+        payload[payloadLength++] = UDS_POSITIVE_RESPONSE_SID(sid); // 0x59
+        payload[payloadLength++] = subFunction;                    // 0x02
+        payload[payloadLength++] = statusMask;                     // Status Mask 에코
 
         for (int i = 0; i < MAX_DTCS; i++) {
             if (g_dtcStorage[i].dtc_code != 0 && (g_dtcStorage[i].status & statusMask) != 0) {
-                if (plen + 4 <= sizeof(payload)) {
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 16);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 8);
-                    payload[plen++] = (uint8_t)(g_dtcStorage[i].dtc_code & 0xFF);
-                    payload[plen++] = g_dtcStorage[i].status;
+                if (payloadLength + 4 <= sizeof(payload)) {
+                    payload[payloadLength++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 16);
+                    payload[payloadLength++] = (uint8_t)(g_dtcStorage[i].dtc_code >> 8);
+                    payload[payloadLength++] = (uint8_t)(g_dtcStorage[i].dtc_code & 0xFF);
+                    payload[payloadLength++] = g_dtcStorage[i].status;
                 } else {
                     break; // 버퍼 부족
                 }
             }
         }
-        CANTP_SendResponse(payload, plen);
 
-    } else {
+        CANTP_SendResponse(payload, payloadLength);
+    }
+    else {
         sendNegativeResponse(sid, UDS_NRC_SUB_FUNCTION_NOT_SUPPORTED); // 0x12
     }
 }

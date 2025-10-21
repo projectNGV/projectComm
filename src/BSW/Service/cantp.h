@@ -37,6 +37,7 @@
 /*------------------------------------------------------Macros-------------------------------------------------------*/
 /*********************************************************************************************************************/
 #define UDS_RESPONSE_CAN_ID 0x7E8
+
 #define CANTP_RX_BUFFER_SIZE 4095
 #define CANTP_TX_BUFFER_SIZE 4095
 #define FLOW_CONTROL_BLOCK_SIZE 150 // 4095/7 = 585 -> total about 585 frames 전송
@@ -64,7 +65,6 @@
 /*********************************************************************************************************************/
 void CANTP_HandleRxISR(const unsigned char* canData, unsigned int canId);
 void CANTP_MainFunction(void);
-
 void CANTP_SendResponse(const uint8_t* data, uint16_t length);
 
 
