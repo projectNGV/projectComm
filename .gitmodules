@@ -1,0 +1,3 @@
+[submodule "project_synapse"]
+	path = project_synapse
+	url = https://github.com/Jun-hyeok-Park/project_synapse.git
