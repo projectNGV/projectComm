@@ -147,9 +147,4 @@ void config_init(void)
     strcpy(g_config.supplier, "Hyundai Autoever");
 }
 
-// 주기적으로 호출될 관리 함수
-void config_mainFunction(void)
-{
-    // 나중에는 여기에 'g_config에 변경이 생겼으면 DFlash에 저장'하는
-    // 로직을 추가하게 됩니다.
-}
+

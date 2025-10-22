@@ -13,6 +13,7 @@ from tkinter import scrolledtext, font as tkFont, filedialog
 from doipclient import DoIPClient
 from doipclient.connectors import DoIPClientUDSConnector
 from udsoncan.client import Client
+from udsoncan.connections import IsoTPSocketConnection
 from udsoncan.exceptions import *
 from udsoncan.configs import default_client_config
 # Request와 services를 임포트 (0x2A, 0x19 등 직접 구성 시 필요)
@@ -54,8 +55,10 @@ uds_config = {
     'data_identifiers': {did: codec for did, (_, codec) in DID_DESCRIPTIONS.items() if codec is not None},
     'p2_timeout': 10,
     'p2_star_timeout': 15,
-    'request_timeout': 5, # 넉넉하게 5초
+    'request_timeout': 15, # 넉넉하게 
 }
+
+
 
 # --- 전역 변수 ---
 task_queue = queue.Queue() # GUI 버튼 -> worker 스레드
@@ -582,15 +585,15 @@ def process_periodic_data_queue():
 
 # --- GUI 생성 ---
 window = tk.Tk()
-window.title("ECU 진단 툴 (v1.3 - 0x2A 주기적 수신)")
-window.geometry("600x800")
+window.title("ECU 진단 툴 (v1.3)")
+window.geometry("600x750")
 window.configure(bg="#f0f0f0")
 
 default_font = tkFont.nametofont("TkDefaultFont")
 default_font.configure(family="맑은 고딕", size=9)
 
-session_status_label = tk.Label(window, text="현재 세션: 확인 중...", font=("맑은 고딕", 9, "italic"), bg="#f0f0f0", fg="blue")
-session_status_label.pack(pady=(5, 0))
+# session_status_label = tk.Label(window, text="현재 세션: 확인 중...", font=("맑은 고딕", 9, "italic"), bg="#f0f0f0", fg="blue")
+# session_status_label.pack(pady=(5, 0))
 
 # --- ✨ [수정] 1. 실시간 센서 데이터 그룹 ---
 rt_frame = tk.LabelFrame(window, text=" 실시간 센서 데이터 (0x2A 주기적 수신) ", padx=10, pady=5, bg="#e0e0ff")
